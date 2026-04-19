@@ -5,10 +5,10 @@ import { myInterests } from "../controllers/interestController.js"
 
 const router = Router()
 
-// Owner: their own listings (any status)
-router.get("/properties", authenticate, requireRole("owner"), listMyProperties)
+// User's own listings (any status)
+router.get("/properties", authenticate, requireRole("user"), listMyProperties)
 
-// User: properties they've marked interested
+// Properties the user has marked interested in
 router.get("/interests", authenticate, requireRole("user"), myInterests)
 
 export default router
