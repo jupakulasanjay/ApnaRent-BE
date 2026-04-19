@@ -6,20 +6,27 @@ CREATE TABLE IF NOT EXISTS properties (
   description        TEXT,
   price              INTEGER NOT NULL,
 
+  -- Ownership + moderation
+  owner_id           INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  status             TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+  rejected_reason    TEXT,
+  approved_by        INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  approved_at        TIMESTAMP,
+
   -- Address (populated via geocoding API response)
-  address_line       TEXT,         -- street + number (e.g. "12, MG Road")
-  building_name      TEXT,         -- society / apartment / tower
-  landmark           TEXT,         -- free-form nearby reference
-  sub_locality       TEXT,         -- e.g. "6th Block"
-  locality           TEXT,         -- e.g. "Koramangala"
-  city               TEXT,         -- e.g. "Bengaluru"
-  district           TEXT,         -- administrative_area_level_2
-  state              TEXT,         -- administrative_area_level_1
+  address_line       TEXT,
+  building_name      TEXT,
+  landmark           TEXT,
+  sub_locality       TEXT,
+  locality           TEXT,
+  city               TEXT,
+  district           TEXT,
+  state              TEXT,
   country            TEXT,
-  country_code       TEXT,         -- ISO 3166-1 alpha-2, e.g. "IN"
-  pincode            TEXT,         -- postal_code
-  formatted_address  TEXT,         -- full single-line address from API
-  place_id           TEXT,         -- provider place identifier (Google/Mapbox)
+  country_code       TEXT,
+  pincode            TEXT,
+  formatted_address  TEXT,
+  place_id           TEXT,
 
   -- Geo
   latitude           DECIMAL(9, 6),
@@ -37,3 +44,5 @@ CREATE INDEX IF NOT EXISTS idx_properties_pincode     ON properties (pincode);
 CREATE INDEX IF NOT EXISTS idx_properties_lat_lng     ON properties (latitude, longitude);
 CREATE INDEX IF NOT EXISTS idx_properties_place_id    ON properties (place_id);
 CREATE INDEX IF NOT EXISTS idx_properties_created_at  ON properties (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_properties_owner       ON properties (owner_id);
+CREATE INDEX IF NOT EXISTS idx_properties_status      ON properties (status);
