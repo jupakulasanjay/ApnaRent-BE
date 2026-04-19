@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS users (
   password_hash    TEXT NOT NULL,
   name             TEXT,
   phone            TEXT,
-  role             TEXT NOT NULL CHECK (role IN ('admin', 'owner', 'user')),
+  role             TEXT NOT NULL CHECK (role IN ('admin', 'user')),
   status           TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'pending', 'rejected')),
   rejected_reason  TEXT,
   approved_by      INTEGER REFERENCES users(id) ON DELETE SET NULL,

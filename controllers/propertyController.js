@@ -107,7 +107,7 @@ export async function updatePropertyHandler(req, res, next) {
     const existing = await getPropertyById(id)
     if (!existing) return next({ status: 404, message: "Property not found" })
 
-    if (req.user.role === "owner" && existing.owner_id !== req.user.id) {
+    if (req.user.role === "user" && existing.owner_id !== req.user.id) {
       return next({ status: 403, message: "You can only edit your own properties" })
     }
 
@@ -141,7 +141,7 @@ export async function deletePropertyHandler(req, res, next) {
     const existing = await getPropertyById(id)
     if (!existing) return next({ status: 404, message: "Property not found" })
 
-    if (req.user.role === "owner" && existing.owner_id !== req.user.id) {
+    if (req.user.role === "user" && existing.owner_id !== req.user.id) {
       return next({ status: 403, message: "You can only delete your own properties" })
     }
 

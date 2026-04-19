@@ -16,11 +16,11 @@ const router = Router()
 router.get("/", getProperties)
 router.get("/:id", getProperty)
 
-// Owner creates / manages own listings (admin can moderate any)
+// Users create + manage their own listings (admin can moderate any)
 router.post(
   "/",
   authenticate,
-  requireRole("owner"),
+  requireRole("user"),
   upload.array("images", 15),
   processImages,
   createPropertyHandler
@@ -28,14 +28,14 @@ router.post(
 router.put(
   "/:id",
   authenticate,
-  requireRole("owner", "admin"),
+  requireRole("user", "admin"),
   upload.array("images", 15),
   processImages,
   updatePropertyHandler
 )
-router.delete("/:id", authenticate, requireRole("owner", "admin"), deletePropertyHandler)
+router.delete("/:id", authenticate, requireRole("user", "admin"), deletePropertyHandler)
 
-// Interests (logged-in users)
+// Interests (users only)
 router.post("/:id/interest", authenticate, requireRole("user"), markInterest)
 router.delete("/:id/interest", authenticate, requireRole("user"), unmarkInterest)
 

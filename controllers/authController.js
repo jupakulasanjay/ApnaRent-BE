@@ -2,7 +2,7 @@ import bcrypt from "bcryptjs"
 import jwt from "jsonwebtoken"
 import { findUserByEmail, findUserById, createUser } from "../models/userModel.js"
 
-const SIGNUP_ROLES = ["user", "owner", "admin"]
+const SIGNUP_ROLES = ["user", "admin"]
 
 function signToken(user) {
   return jwt.sign(
@@ -27,6 +27,7 @@ export async function signup(req, res, next) {
     if (!SIGNUP_ROLES.includes(role)) {
       return next({ status: 400, message: `Invalid role (allowed: ${SIGNUP_ROLES.join(", ")})` })
     }
+
 
     const existing = await findUserByEmail(email)
     if (existing) return next({ status: 409, message: "Email already in use" })
