@@ -7,19 +7,9 @@ import {
 } from "../models/propertyModel.js"
 
 const ADDRESS_FIELDS = [
-  "address_line",
-  "building_name",
-  "landmark",
-  "sub_locality",
-  "locality",
-  "city",
-  "district",
-  "state",
-  "country",
-  "country_code",
-  "pincode",
-  "formatted_address",
-  "place_id"
+  "address_line", "building_name", "landmark", "sub_locality", "locality",
+  "city", "district", "state", "country", "country_code", "pincode",
+  "formatted_address", "place_id"
 ]
 
 function parseNumber(value, { integer = false } = {}) {
@@ -45,6 +35,7 @@ function pickAddress(body) {
   return out
 }
 
+// Public list — only approved properties.
 export async function getProperties(req, res, next) {
   try {
     const { city } = req.query
@@ -54,13 +45,17 @@ export async function getProperties(req, res, next) {
     const limit = Math.min(parseNumber(req.query.limit, { integer: true }) || 20, 100)
     const offset = parseNumber(req.query.offset, { integer: true }) || 0
 
-    const rows = await listProperties({ city, lat, lng, radiusKm, limit, offset })
+    const rows = await listProperties({
+      city, lat, lng, radiusKm, limit, offset,
+      status: "approved"
+    })
     res.json({ count: rows.length, limit, offset, data: rows })
   } catch (err) {
     next(err)
   }
 }
 
+// Public detail — only approved (or if requester owns it / is admin).
 export async function getProperty(req, res, next) {
   try {
     const id = parseInt(req.params.id, 10)
@@ -68,6 +63,15 @@ export async function getProperty(req, res, next) {
 
     const property = await getPropertyById(id)
     if (!property) return next({ status: 404, message: "Property not found" })
+
+    if (property.status !== "approved") {
+      const requesterId = req.user?.id
+      const requesterRole = req.user?.role
+      const isOwner = requesterId != null && property.owner_id === requesterId
+      const isAdmin = requesterRole === "admin"
+      if (!isOwner && !isAdmin) return next({ status: 404, message: "Property not found" })
+    }
+
     res.json(property)
   } catch (err) {
     next(err)
@@ -85,6 +89,7 @@ export async function createPropertyHandler(req, res, next) {
       latitude: parseNumber(req.body.latitude),
       longitude: parseNumber(req.body.longitude),
       images: req.imagePaths || [],
+      owner_id: req.user.id,
       ...pickAddress(req.body)
     })
 
@@ -102,6 +107,10 @@ export async function updatePropertyHandler(req, res, next) {
     const existing = await getPropertyById(id)
     if (!existing) return next({ status: 404, message: "Property not found" })
 
+    if (req.user.role === "owner" && existing.owner_id !== req.user.id) {
+      return next({ status: 403, message: "You can only edit your own properties" })
+    }
+
     const patch = {
       title: req.body.title,
       description: req.body.description,
@@ -111,7 +120,6 @@ export async function updatePropertyHandler(req, res, next) {
       ...pickAddress(req.body)
     }
 
-    // Newly uploaded images are appended by default. Pass replaceImages=true to replace.
     if (req.imagePaths && req.imagePaths.length > 0) {
       patch.images = req.body.replaceImages === "true"
         ? req.imagePaths
@@ -130,9 +138,24 @@ export async function deletePropertyHandler(req, res, next) {
     const id = parseInt(req.params.id, 10)
     if (!Number.isFinite(id)) return next({ status: 400, message: "Invalid id" })
 
-    const ok = await deleteProperty(id)
-    if (!ok) return next({ status: 404, message: "Property not found" })
+    const existing = await getPropertyById(id)
+    if (!existing) return next({ status: 404, message: "Property not found" })
+
+    if (req.user.role === "owner" && existing.owner_id !== req.user.id) {
+      return next({ status: 403, message: "You can only delete your own properties" })
+    }
+
+    await deleteProperty(id)
     res.status(204).end()
+  } catch (err) {
+    next(err)
+  }
+}
+
+export async function listMyProperties(req, res, next) {
+  try {
+    const rows = await listProperties({ ownerId: req.user.id, limit: 200 })
+    res.json({ count: rows.length, data: rows })
   } catch (err) {
     next(err)
   }

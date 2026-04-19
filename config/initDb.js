@@ -7,6 +7,12 @@ import pool from "./db.js"
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const SCHEMA_DIR = path.join(__dirname, "schema")
+const RESET = process.argv.includes("--reset")
+
+async function resetTables() {
+  await pool.query(`DROP TABLE IF EXISTS interests, properties, users, admins CASCADE;`)
+  console.log("✓ existing tables dropped (--reset)")
+}
 
 async function applySchemaFiles() {
   const files = (await fs.readdir(SCHEMA_DIR))
@@ -29,15 +35,19 @@ async function seedAdmin() {
   }
   const hash = await bcrypt.hash(password, 10)
   await pool.query(
-    `INSERT INTO admins (email, password_hash)
-     VALUES ($1, $2)
-     ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash`,
-    [email, hash]
+    `INSERT INTO users (email, password_hash, name, role, status)
+     VALUES ($1, $2, $3, 'admin', 'active')
+     ON CONFLICT (email) DO UPDATE
+       SET password_hash = EXCLUDED.password_hash,
+           role = 'admin',
+           status = 'active'`,
+    [email, hash, "Primary Admin"]
   )
   console.log(`✓ admin upserted: ${email}`)
 }
 
 async function run() {
+  if (RESET) await resetTables()
   console.log("Applying schema…")
   await applySchemaFiles()
   await seedAdmin()
