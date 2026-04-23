@@ -10,7 +10,15 @@ const SCHEMA_DIR = path.join(__dirname, "schema")
 const RESET = process.argv.includes("--reset")
 
 async function resetTables() {
-  await pool.query(`DROP TABLE IF EXISTS interests, properties, users, admins CASCADE;`)
+  await pool.query(
+    `DROP TABLE IF EXISTS
+       contacts,
+       listing_images, listings,
+       property_images, properties,
+       unit_images, units, buildings,
+       interests, admins, users
+     CASCADE;`
+  )
   console.log("✓ existing tables dropped (--reset)")
 }
 
@@ -27,20 +35,19 @@ async function applySchemaFiles() {
 }
 
 async function seedAdmin() {
-  const email = process.env.ADMIN_EMAIL
+  const rawEmail = process.env.ADMIN_EMAIL
   const password = process.env.ADMIN_PASSWORD
-  if (!email || !password) {
+  if (!rawEmail || !password) {
     console.log("• skipping admin seed (set ADMIN_EMAIL + ADMIN_PASSWORD to seed)")
     return
   }
+  const email = rawEmail.trim().toLowerCase()
   const hash = await bcrypt.hash(password, 10)
   await pool.query(
-    `INSERT INTO users (email, password_hash, name, role, status)
-     VALUES ($1, $2, $3, 'admin', 'active')
-     ON CONFLICT (email) DO UPDATE
-       SET password_hash = EXCLUDED.password_hash,
-           role = 'admin',
-           status = 'active'`,
+    `INSERT INTO users (email, password_hash, name, role)
+     VALUES ($1, $2, $3, 'admin')
+     ON CONFLICT (email, role) DO UPDATE
+       SET password_hash = EXCLUDED.password_hash`,
     [email, hash, "Primary Admin"]
   )
   console.log(`✓ admin upserted: ${email}`)

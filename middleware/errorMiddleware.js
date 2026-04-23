@@ -8,8 +8,18 @@ export function errorHandler(err, req, res, next) {
 
   // pg error codes → friendly status
   if (err.code) {
-    if (err.code === "23505") { status = 409; message = "Duplicate value violates unique constraint" }
-    else if (err.code === "23503") { status = 400; message = "Referenced record does not exist" }
+    if (err.code === "23505") {
+      status = 409
+      message = "Duplicate value violates unique constraint"
+    }
+    else if (err.code === "23503") {
+      status = 400
+      // err.constraint is like "listings_property_id_fkey" or "contacts_user_id_fkey"
+      // Extract the entity and include it in the message.
+      const m = /^[a-z_]+_([a-z_]+)_id_fkey$/.exec(err.constraint || "")
+      const entity = m ? m[1].replace(/_/g, " ") : "record"
+      message = `Referenced ${entity} does not exist`
+    }
     else if (err.code === "23502") { status = 400; message = "Required field is missing" }
     else if (err.code === "22P02") { status = 400; message = "Invalid input format" }
   }
@@ -24,6 +34,7 @@ export function errorHandler(err, req, res, next) {
 
   res.status(status).json({
     error: message,
+    ...(err.details ? { details: err.details } : {}),
     ...(process.env.NODE_ENV !== "production" && status >= 500 ? { stack: err.stack } : {})
   })
 }
