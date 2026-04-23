@@ -3,7 +3,7 @@ import {
   create, update, submit, uploadImages,
   listMy, listPublic, getPublic
 } from "../controllers/listingController.js"
-import { authenticate, requireOwner } from "../middleware/authMiddleware.js"
+import { authenticate, optionalAuthenticate, requireOwner } from "../middleware/authMiddleware.js"
 import { validate } from "../middleware/validateMiddleware.js"
 import { upload, processImages } from "../middleware/uploadMiddleware.js"
 import {
@@ -16,7 +16,7 @@ const router = Router()
 // Public — active listings only
 router.get("/",     validate({ query: publicListingsQuery }), listPublic)
 router.get("/my",   authenticate, requireOwner, listMy)
-router.get("/:id",  validate({ params: idParam }), getPublic)
+router.get("/:id",  optionalAuthenticate, validate({ params: idParam }), getPublic)
 
 // Owner-only writes
 router.post("/",

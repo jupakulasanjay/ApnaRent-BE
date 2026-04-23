@@ -59,7 +59,7 @@ export async function listPublic(req, res, next) {
 
 export async function getPublic(req, res, next) {
   try {
-    const listing = await listingService.getPublicListing(req.params.id)
+    const listing = await listingService.getListingForRequester(req.params.id, req.user || null)
     res.json(listing)
   } catch (err) {
     next(err)

@@ -56,7 +56,7 @@ export async function listPublic(req, res, next) {
 
 export async function getPublic(req, res, next) {
   try {
-    const property = await propertyService.getPublicProperty(req.params.id)
+    const property = await propertyService.getPropertyForRequester(req.params.id, req.user || null)
     res.json(property)
   } catch (err) {
     next(err)

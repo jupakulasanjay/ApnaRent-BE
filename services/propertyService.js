@@ -4,8 +4,7 @@ import {
   updateProperty,
   setPropertyStatus,
   listPropertiesByOwner,
-  listPublicProperties,
-  getPublicPropertyById
+  listPublicProperties
 } from "../db/propertyDb.js"
 import { addPropertyImages, listPropertyImages } from "../db/propertyImageDb.js"
 
@@ -57,9 +56,19 @@ export async function listPublic(filters) {
   return Promise.all(rows.map(async (p) => ({ ...p, images: await listPropertyImages(p.id) })))
 }
 
-export async function getPublicProperty(id) {
-  const property = await getPublicPropertyById(id)
+// Role-aware detail fetch — see listingService.getListingForRequester for rules.
+export async function getPropertyForRequester(id, requester) {
+  const property = await getPropertyById(id)
   if (!property) throw httpError(404, "Property not found")
+
+  const isAdmin = requester?.role === "admin"
+  const isOwner = requester?.id != null && property.owner_id === requester.id
+  const isActive = property.status === "active"
+
+  if (!isAdmin && !isOwner && !isActive) {
+    throw httpError(404, "Property not found")
+  }
+
   property.images = await listPropertyImages(property.id)
   return property
 }

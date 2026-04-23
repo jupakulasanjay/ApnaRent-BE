@@ -4,8 +4,7 @@ import {
   updateListing,
   setListingStatus,
   listListingsByOwner,
-  listPublicListings,
-  getPublicListingById
+  listPublicListings
 } from "../db/listingDb.js"
 import { addListingImages, listListingImages } from "../db/listingImageDb.js"
 
@@ -57,9 +56,23 @@ export async function listPublic(filters) {
   return Promise.all(rows.map(async (l) => ({ ...l, images: await listListingImages(l.id) })))
 }
 
-export async function getPublicListing(id) {
-  const listing = await getPublicListingById(id)
+// Role-aware detail fetch. Visibility rules:
+//   admin                         → any status
+//   owner (owner_id === me)       → any status
+//   tenant / anonymous / other    → active only
+// Non-visible records return 404 (never 403) so we don't leak existence.
+export async function getListingForRequester(id, requester) {
+  const listing = await getListingById(id)
   if (!listing) throw httpError(404, "Listing not found")
+
+  const isAdmin = requester?.role === "admin"
+  const isOwner = requester?.id != null && listing.owner_id === requester.id
+  const isActive = listing.status === "active"
+
+  if (!isAdmin && !isOwner && !isActive) {
+    throw httpError(404, "Listing not found")
+  }
+
   listing.images = await listListingImages(listing.id)
   return listing
 }

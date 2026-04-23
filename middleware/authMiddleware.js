@@ -29,6 +29,26 @@ export async function authenticate(req, res, next) {
   next()
 }
 
+// Sets req.user iff a valid Bearer token is present and its subject still exists.
+// Never errors — an anonymous request simply proceeds with req.user undefined.
+// Use on endpoints whose behavior branches on who's asking (e.g. owner-sees-own-drafts).
+export async function optionalAuthenticate(req, res, next) {
+  const header = req.headers.authorization || ""
+  const [scheme, token] = header.split(" ")
+  if (scheme !== "Bearer" || !token) return next()
+
+  try {
+    const payload = jwt.verify(token, process.env.JWT_SECRET)
+    const user = await findUserById(payload.sub)
+    if (user && user.role === payload.role) {
+      req.user = { id: user.id, email: user.email, role: user.role }
+    }
+  } catch {
+    // swallow — treat as anonymous
+  }
+  next()
+}
+
 export function requireRole(...roles) {
   return (req, res, next) => {
     if (!req.user) return next({ status: 401, message: "Not authenticated" })
