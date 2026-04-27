@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS listings (
   rejection_reason  TEXT,
   approved_by       INTEGER REFERENCES users(id) ON DELETE SET NULL,
   approved_at       TIMESTAMP,
+  amenities         TEXT[] NOT NULL DEFAULT '{}',
   created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

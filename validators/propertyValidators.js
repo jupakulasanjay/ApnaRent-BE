@@ -2,6 +2,8 @@ import { z } from "zod"
 
 const PROPERTY_TYPES = ["land", "plot", "apartment", "villa", "house", "commercial"]
 
+const amenitiesArray = z.array(z.string().min(1).max(120)).max(100).optional()
+
 export const createPropertyBody = z.object({
   title:         z.string().min(1).max(200),
   description:   z.string().max(5000).optional(),
@@ -10,7 +12,8 @@ export const createPropertyBody = z.object({
   area_sqft:     z.coerce.number().int().positive().optional(),
   address:       z.string().min(1).max(500),
   locality:      z.string().min(1).max(120).optional(),
-  city:          z.string().min(1).max(120).optional()
+  city:          z.string().min(1).max(120).optional(),
+  amenities:     amenitiesArray
 })
 
 export const updatePropertyBody = createPropertyBody.partial()

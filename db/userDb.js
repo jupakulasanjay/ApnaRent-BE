@@ -26,6 +26,15 @@ export async function findUserById(id) {
   return rows[0] || null
 }
 
+export async function findUsersByIds(ids) {
+  if (!ids?.length) return []
+  const { rows } = await pool.query(
+    `SELECT ${SAFE_COLUMNS} FROM users WHERE id = ANY($1::int[])`,
+    [ids]
+  )
+  return rows
+}
+
 export async function createUser({ email, passwordHash, name, phone, role }) {
   const { rows } = await pool.query(
     `INSERT INTO users (email, password_hash, name, phone, role)

@@ -7,6 +7,7 @@ import {
   listPublicListings
 } from "../db/listingDb.js"
 import { addListingImages, listListingImages } from "../db/listingImageDb.js"
+import { decoratePostedBy, decoratePostedByMany } from "./postedBy.js"
 
 function httpError(status, message) {
   const err = new Error(message)
@@ -22,7 +23,8 @@ async function assertOwnsListing(listingId, ownerId) {
 }
 
 export async function createListingForOwner(ownerId, data) {
-  return createListing({ ownerId, ...data })
+  const created = await createListing({ ownerId, ...data })
+  return decoratePostedBy(created)
 }
 
 export async function updateListingForOwner(ownerId, listingId, patch) {
@@ -30,7 +32,8 @@ export async function updateListingForOwner(ownerId, listingId, patch) {
   if (listing.status === "active") {
     throw httpError(409, "Active listing cannot be edited; unpublish first")
   }
-  return updateListing(listingId, patch)
+  const updated = await updateListing(listingId, patch)
+  return decoratePostedBy(updated)
 }
 
 export async function submitListingForVerification(ownerId, listingId) {
@@ -38,7 +41,8 @@ export async function submitListingForVerification(ownerId, listingId) {
   if (listing.status !== "draft" && listing.status !== "rejected") {
     throw httpError(409, `Listing cannot be submitted from status '${listing.status}'`)
   }
-  return setListingStatus(listingId, { status: "pending_verification" })
+  const updated = await setListingStatus(listingId, { status: "pending_verification" })
+  return decoratePostedBy(updated)
 }
 
 export async function addImagesToListing(ownerId, listingId, imageUrls) {
@@ -48,12 +52,18 @@ export async function addImagesToListing(ownerId, listingId, imageUrls) {
 
 export async function listMyListings(ownerId) {
   const rows = await listListingsByOwner(ownerId)
-  return Promise.all(rows.map(async (l) => ({ ...l, images: await listListingImages(l.id) })))
+  const withImages = await Promise.all(
+    rows.map(async (l) => ({ ...l, images: await listListingImages(l.id) }))
+  )
+  return decoratePostedByMany(withImages)
 }
 
 export async function listPublic(filters) {
   const rows = await listPublicListings(filters)
-  return Promise.all(rows.map(async (l) => ({ ...l, images: await listListingImages(l.id) })))
+  const withImages = await Promise.all(
+    rows.map(async (l) => ({ ...l, images: await listListingImages(l.id) }))
+  )
+  return decoratePostedByMany(withImages)
 }
 
 // Role-aware detail fetch. Visibility rules:
@@ -74,5 +84,5 @@ export async function getListingForRequester(id, requester) {
   }
 
   listing.images = await listListingImages(listing.id)
-  return listing
+  return decoratePostedBy(listing)
 }

@@ -3,6 +3,7 @@ import { listPublicListings } from "../db/listingDb.js"
 import { listListingImages } from "../db/listingImageDb.js"
 import { listPublicProperties } from "../db/propertyDb.js"
 import { listPropertyImages } from "../db/propertyImageDb.js"
+import { decoratePostedByMany } from "./postedBy.js"
 
 // =============================================================
 // LISTINGS (rental) search — unchanged public contract.
@@ -84,7 +85,7 @@ export async function naturalLanguageSearch(query) {
   const withImages = await Promise.all(
     results.map(async (l) => ({ ...l, images: await listListingImages(l.id) }))
   )
-  return { filters, results: withImages }
+  return { filters, results: await decoratePostedByMany(withImages) }
 }
 
 // =============================================================
@@ -281,5 +282,5 @@ export async function naturalLanguagePropertySearch(query) {
   const withImages = await Promise.all(
     results.map(async (p) => ({ ...p, images: await listPropertyImages(p.id) }))
   )
-  return { filters, results: withImages }
+  return { filters, results: await decoratePostedByMany(withImages) }
 }

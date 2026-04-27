@@ -10,6 +10,7 @@ import adminRoutes from "./routes/adminRoutes.js"
 import searchRoutes from "./routes/searchRoutes.js"
 import contactRoutes from "./routes/contactRoutes.js"
 import interestRoutes from "./routes/interestRoutes.js"
+import amenityRoutes from "./routes/amenityRoutes.js"
 import { notFound, errorHandler } from "./middleware/errorMiddleware.js"
 
 const app = express()
@@ -42,6 +43,7 @@ app.use("/api/admin",      adminRoutes)
 app.use("/api/search",     searchRoutes)
 app.use("/api/contact",    contactRoutes)
 app.use("/api/interests",  interestRoutes)
+app.use("/api/amenities",  amenityRoutes)
 
 app.use(notFound)
 app.use(errorHandler)

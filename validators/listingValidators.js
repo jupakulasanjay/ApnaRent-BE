@@ -2,6 +2,8 @@ import { z } from "zod"
 
 const FURNISHING = ["unfurnished", "semi_furnished", "furnished"]
 
+const amenitiesArray = z.array(z.string().min(1).max(120)).max(100).optional()
+
 export const createListingBody = z.object({
   title:          z.string().min(1).max(200),
   description:    z.string().max(5000).optional(),
@@ -12,7 +14,8 @@ export const createListingBody = z.object({
   available_from: z.coerce.date().optional(),
   address:        z.string().min(1).max(500),
   locality:       z.string().min(1).max(120).optional(),
-  city:           z.string().min(1).max(120).optional()
+  city:           z.string().min(1).max(120).optional(),
+  amenities:      amenitiesArray
 })
 
 export const updateListingBody = createListingBody.partial()

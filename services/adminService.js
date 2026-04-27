@@ -2,6 +2,7 @@ import { getListingById, setListingStatus, listListingsByStatus } from "../db/li
 import { listListingImages } from "../db/listingImageDb.js"
 import { getPropertyById, setPropertyStatus, listPropertiesByStatus } from "../db/propertyDb.js"
 import { listPropertyImages } from "../db/propertyImageDb.js"
+import { decoratePostedBy, decoratePostedByMany } from "./postedBy.js"
 
 function httpError(status, message) {
   const err = new Error(message)
@@ -13,7 +14,10 @@ function httpError(status, message) {
 
 export async function listPendingListings() {
   const rows = await listListingsByStatus({ status: "pending_verification", limit: 100 })
-  return Promise.all(rows.map(async (l) => ({ ...l, images: await listListingImages(l.id) })))
+  const withImages = await Promise.all(
+    rows.map(async (l) => ({ ...l, images: await listListingImages(l.id) }))
+  )
+  return decoratePostedByMany(withImages)
 }
 
 export async function approveListing(listingId, adminId) {
@@ -22,7 +26,8 @@ export async function approveListing(listingId, adminId) {
   if (listing.status !== "pending_verification") {
     throw httpError(409, `Only pending_verification listings can be approved (got '${listing.status}')`)
   }
-  return setListingStatus(listingId, { status: "active", approvedBy: adminId, rejectionReason: null })
+  const updated = await setListingStatus(listingId, { status: "active", approvedBy: adminId, rejectionReason: null })
+  return decoratePostedBy(updated)
 }
 
 export async function rejectListing(listingId, adminId, reason) {
@@ -31,14 +36,18 @@ export async function rejectListing(listingId, adminId, reason) {
   if (listing.status !== "pending_verification") {
     throw httpError(409, `Only pending_verification listings can be rejected (got '${listing.status}')`)
   }
-  return setListingStatus(listingId, { status: "rejected", approvedBy: adminId, rejectionReason: reason })
+  const updated = await setListingStatus(listingId, { status: "rejected", approvedBy: adminId, rejectionReason: reason })
+  return decoratePostedBy(updated)
 }
 
 // ---------- properties ----------
 
 export async function listPendingProperties() {
   const rows = await listPropertiesByStatus({ status: "pending_verification", limit: 100 })
-  return Promise.all(rows.map(async (p) => ({ ...p, images: await listPropertyImages(p.id) })))
+  const withImages = await Promise.all(
+    rows.map(async (p) => ({ ...p, images: await listPropertyImages(p.id) }))
+  )
+  return decoratePostedByMany(withImages)
 }
 
 export async function approveProperty(propertyId, adminId) {
@@ -47,7 +56,8 @@ export async function approveProperty(propertyId, adminId) {
   if (property.status !== "pending_verification") {
     throw httpError(409, `Only pending_verification properties can be approved (got '${property.status}')`)
   }
-  return setPropertyStatus(propertyId, { status: "active", approvedBy: adminId, rejectionReason: null })
+  const updated = await setPropertyStatus(propertyId, { status: "active", approvedBy: adminId, rejectionReason: null })
+  return decoratePostedBy(updated)
 }
 
 export async function rejectProperty(propertyId, adminId, reason) {
@@ -56,5 +66,6 @@ export async function rejectProperty(propertyId, adminId, reason) {
   if (property.status !== "pending_verification") {
     throw httpError(409, `Only pending_verification properties can be rejected (got '${property.status}')`)
   }
-  return setPropertyStatus(propertyId, { status: "rejected", approvedBy: adminId, rejectionReason: reason })
+  const updated = await setPropertyStatus(propertyId, { status: "rejected", approvedBy: adminId, rejectionReason: reason })
+  return decoratePostedBy(updated)
 }
