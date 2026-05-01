@@ -1,39 +1,33 @@
-import { addInterest, removeInterest, listUserInterests } from "../models/interestModel.js"
-import { getPropertyById } from "../models/propertyModel.js"
+import * as interestService from "../services/interestService.js"
 
-export async function markInterest(req, res, next) {
+export async function list(req, res, next) {
   try {
-    const propertyId = parseInt(req.params.id, 10)
-    if (!Number.isFinite(propertyId)) return next({ status: 400, message: "Invalid id" })
-
-    const property = await getPropertyById(propertyId)
-    if (!property || property.status !== "approved") {
-      return next({ status: 404, message: "Property not found" })
-    }
-
-    await addInterest(req.user.id, propertyId)
-    res.status(204).end()
+    const data = await interestService.listInterestsForUser(req.user)
+    res.json(data)
   } catch (err) {
     next(err)
   }
 }
 
-export async function unmarkInterest(req, res, next) {
+export async function create(req, res, next) {
   try {
-    const propertyId = parseInt(req.params.id, 10)
-    if (!Number.isFinite(propertyId)) return next({ status: 400, message: "Invalid id" })
-
-    await removeInterest(req.user.id, propertyId)
-    res.status(204).end()
+    const { interest, created } = await interestService.saveInterest(req.user, {
+      listingId:  req.body.listing_id,
+      propertyId: req.body.property_id
+    })
+    res.status(created ? 201 : 200).json(interest)
   } catch (err) {
     next(err)
   }
 }
 
-export async function myInterests(req, res, next) {
+export async function remove(req, res, next) {
   try {
-    const rows = await listUserInterests(req.user.id)
-    res.json({ count: rows.length, data: rows })
+    await interestService.removeInterest(req.user, {
+      kind: req.params.kind,
+      targetId: req.params.id
+    })
+    res.status(204).end()
   } catch (err) {
     next(err)
   }

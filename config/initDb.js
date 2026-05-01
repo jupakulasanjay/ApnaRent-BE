@@ -4,14 +4,36 @@ import path from "path"
 import { fileURLToPath } from "url"
 import bcrypt from "bcryptjs"
 import pool from "./db.js"
+import { markAllApplied } from "./runMigrations.js"
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const SCHEMA_DIR = path.join(__dirname, "schema")
 const RESET = process.argv.includes("--reset")
 
 async function resetTables() {
-  await pool.query(`DROP TABLE IF EXISTS interests, properties, users, admins CASCADE;`)
-  console.log("✓ existing tables dropped (--reset)")
+  // SAFETY RAIL — destructive operations are only permitted against test databases.
+  // Do NOT bypass this guard. If you think you need to reset the dev DB, write a
+  // migration instead (see config/migrations/README.md).
+  const dbName = process.env.DB_NAME || ""
+  if (!/_test$/.test(dbName)) {
+    throw new Error(
+      `REFUSED: --reset will not run against "${dbName}".\n` +
+      `This project's dev DB is never wiped. Only databases whose name ends in "_test" can be reset.\n` +
+      `If you need a schema change, add a migration under config/migrations/ and run \`npm run db:migrate\`.`
+    )
+  }
+
+  await pool.query(
+    `DROP TABLE IF EXISTS
+       contacts,
+       listing_images, listings,
+       property_images, properties,
+       unit_images, units, buildings,
+       interests, admins, users,
+       schema_migrations
+     CASCADE;`
+  )
+  console.log(`✓ existing tables dropped in ${dbName} (--reset)`)
 }
 
 async function applySchemaFiles() {
@@ -27,20 +49,19 @@ async function applySchemaFiles() {
 }
 
 async function seedAdmin() {
-  const email = process.env.ADMIN_EMAIL
+  const rawEmail = process.env.ADMIN_EMAIL
   const password = process.env.ADMIN_PASSWORD
-  if (!email || !password) {
+  if (!rawEmail || !password) {
     console.log("• skipping admin seed (set ADMIN_EMAIL + ADMIN_PASSWORD to seed)")
     return
   }
+  const email = rawEmail.trim().toLowerCase()
   const hash = await bcrypt.hash(password, 10)
   await pool.query(
-    `INSERT INTO users (email, password_hash, name, role, status)
-     VALUES ($1, $2, $3, 'admin', 'active')
-     ON CONFLICT (email) DO UPDATE
-       SET password_hash = EXCLUDED.password_hash,
-           role = 'admin',
-           status = 'active'`,
+    `INSERT INTO users (email, password_hash, name, role)
+     VALUES ($1, $2, $3, 'admin')
+     ON CONFLICT (email, role) DO UPDATE
+       SET password_hash = EXCLUDED.password_hash`,
     [email, hash, "Primary Admin"]
   )
   console.log(`✓ admin upserted: ${email}`)
@@ -51,6 +72,10 @@ async function run() {
   console.log("Applying schema…")
   await applySchemaFiles()
   await seedAdmin()
+  // Fresh install / bootstrap: mark every known migration as applied, since
+  // config/schema/ already embodies the end state. Future `npm run db:migrate`
+  // will then only run migrations added AFTER this moment.
+  await markAllApplied()
   await pool.end()
 }
 

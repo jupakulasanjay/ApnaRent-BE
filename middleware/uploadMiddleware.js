@@ -4,8 +4,7 @@ import fs from "fs/promises"
 import path from "path"
 import crypto from "crypto"
 
-const UPLOAD_DIR = "uploads/property-images"
-const MAX_FILE_BYTES = 10 * 1024 * 1024 // 10 MB per file
+const MAX_FILE_BYTES = 10 * 1024 * 1024
 const MAX_FILES = 15
 
 const storage = multer.memoryStorage()
@@ -21,27 +20,32 @@ export const upload = multer({
   }
 })
 
-export async function processImages(req, res, next) {
-  try {
-    req.imagePaths = []
-    if (!req.files || req.files.length === 0) return next()
+// Factory: processImages("listing-images") or processImages("property-images").
+// Converts each uploaded file to WebP and writes to uploads/<subdir>/.
+export function processImages(subdir) {
+  const dir = path.posix.join("uploads", subdir)
+  return async (req, res, next) => {
+    try {
+      req.imagePaths = []
+      if (!req.files || req.files.length === 0) return next()
 
-    await fs.mkdir(UPLOAD_DIR, { recursive: true })
+      await fs.mkdir(dir, { recursive: true })
 
-    req.imagePaths = await Promise.all(
-      req.files.map(async (file) => {
-        const filename = `${Date.now()}-${crypto.randomBytes(6).toString("hex")}.webp`
-        const diskPath = path.join(UPLOAD_DIR, filename)
-        await sharp(file.buffer)
-          .rotate()
-          .webp({ quality: 82 })
-          .toFile(diskPath)
-        return `/${UPLOAD_DIR}/${filename}`
-      })
-    )
+      req.imagePaths = await Promise.all(
+        req.files.map(async (file) => {
+          const filename = `${Date.now()}-${crypto.randomBytes(6).toString("hex")}.webp`
+          const diskPath = path.join(dir, filename)
+          await sharp(file.buffer)
+            .rotate()
+            .webp({ quality: 82 })
+            .toFile(diskPath)
+          return `/${dir}/${filename}`
+        })
+      )
 
-    next()
-  } catch (err) {
-    next(err)
+      next()
+    } catch (err) {
+      next(err)
+    }
   }
 }

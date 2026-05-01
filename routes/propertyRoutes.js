@@ -1,42 +1,48 @@
 import { Router } from "express"
 import {
-  getProperties,
-  getProperty,
-  createPropertyHandler,
-  updatePropertyHandler,
-  deletePropertyHandler
+  create, update, submit, uploadImages,
+  listMy, listPublic, getPublic
 } from "../controllers/propertyController.js"
-import { markInterest, unmarkInterest } from "../controllers/interestController.js"
-import { authenticate, requireRole } from "../middleware/authMiddleware.js"
+import { authenticate, optionalAuthenticate, requireRole } from "../middleware/authMiddleware.js"
+import { validate } from "../middleware/validateMiddleware.js"
 import { upload, processImages } from "../middleware/uploadMiddleware.js"
+import {
+  createPropertyBody, updatePropertyBody, publicPropertiesQuery
+} from "../validators/propertyValidators.js"
+import { idParam } from "../validators/common.js"
 
 const router = Router()
 
-// Public (approved properties only)
-router.get("/", getProperties)
-router.get("/:id", getProperty)
+// Owners list their drafts/active inventory; admins list their own ApnaRent inventory.
+const ownerOrAdmin = requireRole("owner", "admin")
 
-// Users create + manage their own listings (admin can moderate any)
-router.post(
-  "/",
-  authenticate,
-  requireRole("user"),
-  upload.array("images", 15),
-  processImages,
-  createPropertyHandler
-)
-router.put(
-  "/:id",
-  authenticate,
-  requireRole("user", "admin"),
-  upload.array("images", 15),
-  processImages,
-  updatePropertyHandler
-)
-router.delete("/:id", authenticate, requireRole("user", "admin"), deletePropertyHandler)
+// Public — active properties only
+router.get("/",     validate({ query: publicPropertiesQuery }), listPublic)
+router.get("/my",   authenticate, ownerOrAdmin, listMy)
+router.get("/:id",  optionalAuthenticate, validate({ params: idParam }), getPublic)
 
-// Interests (users only)
-router.post("/:id/interest", authenticate, requireRole("user"), markInterest)
-router.delete("/:id/interest", authenticate, requireRole("user"), unmarkInterest)
+// Owner + admin writes (each can only edit properties they themselves own)
+router.post("/",
+  authenticate, ownerOrAdmin,
+  validate({ body: createPropertyBody }),
+  create
+)
+router.put("/:id",
+  authenticate, ownerOrAdmin,
+  validate({ params: idParam, body: updatePropertyBody }),
+  update
+)
+router.post("/:id/submit",
+  authenticate, ownerOrAdmin,
+  validate({ params: idParam }),
+  submit
+)
+router.post("/:id/images",
+  authenticate, ownerOrAdmin,
+  validate({ params: idParam }),
+  upload.array("images", 15),
+  processImages("property-images"),
+  uploadImages
+)
 
 export default router

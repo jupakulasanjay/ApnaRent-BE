@@ -1,6 +1,7 @@
 import jwt from "jsonwebtoken"
+import { findUserById } from "../db/userDb.js"
 
-export function authenticate(req, res, next) {
+export async function authenticate(req, res, next) {
   const header = req.headers.authorization || ""
   const [scheme, token] = header.split(" ")
 
@@ -8,13 +9,44 @@ export function authenticate(req, res, next) {
     return next({ status: 401, message: "Missing or malformed Authorization header" })
   }
 
+  let payload
+  try {
+    payload = jwt.verify(token, process.env.JWT_SECRET)
+  } catch {
+    return next({ status: 401, message: "Invalid or expired token" })
+  }
+
+  // Reject tokens whose subject no longer exists (e.g. after db:reset or account deletion).
+  const user = await findUserById(payload.sub)
+  if (!user) {
+    return next({ status: 401, message: "Account no longer exists — please sign in again" })
+  }
+  if (user.role !== payload.role) {
+    return next({ status: 401, message: "Session invalid — please sign in again" })
+  }
+
+  req.user = { id: user.id, email: user.email, role: user.role }
+  next()
+}
+
+// Sets req.user iff a valid Bearer token is present and its subject still exists.
+// Never errors — an anonymous request simply proceeds with req.user undefined.
+// Use on endpoints whose behavior branches on who's asking (e.g. owner-sees-own-drafts).
+export async function optionalAuthenticate(req, res, next) {
+  const header = req.headers.authorization || ""
+  const [scheme, token] = header.split(" ")
+  if (scheme !== "Bearer" || !token) return next()
+
   try {
     const payload = jwt.verify(token, process.env.JWT_SECRET)
-    req.user = { id: payload.sub, email: payload.email, role: payload.role, status: payload.status }
-    next()
+    const user = await findUserById(payload.sub)
+    if (user && user.role === payload.role) {
+      req.user = { id: user.id, email: user.email, role: user.role }
+    }
   } catch {
-    next({ status: 401, message: "Invalid or expired token" })
+    // swallow — treat as anonymous
   }
+  next()
 }
 
 export function requireRole(...roles) {
@@ -24,3 +56,7 @@ export function requireRole(...roles) {
     next()
   }
 }
+
+export const requireTenant = requireRole("tenant")
+export const requireOwner = requireRole("owner")
+export const requireAdmin = requireRole("admin")
