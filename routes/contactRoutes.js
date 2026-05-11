@@ -1,8 +1,8 @@
 import { Router } from "express"
-import { create } from "../controllers/contactController.js"
+import { create, createGeneral } from "../controllers/contactController.js"
 import { authenticate, requireRole } from "../middleware/authMiddleware.js"
 import { validate } from "../middleware/validateMiddleware.js"
-import { createContactBody } from "../validators/contactValidators.js"
+import { createContactBody, createGeneralContactBody } from "../validators/contactValidators.js"
 
 const router = Router()
 
@@ -12,6 +12,14 @@ router.post("/",
   requireRole("tenant", "owner"),
   validate({ body: createContactBody }),
   create
+)
+
+// General "contact us" form — no listing/property target.
+router.post("/general",
+  authenticate,
+  requireRole("tenant", "owner"),
+  validate({ body: createGeneralContactBody }),
+  createGeneral
 )
 
 export default router

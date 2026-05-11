@@ -8,3 +8,8 @@ export const createContactBody = z.object({
   (d) => (d.listing_id != null) !== (d.property_id != null),
   { message: "Provide exactly one of listing_id or property_id", path: ["listing_id"] }
 )
+
+export const createGeneralContactBody = z.object({
+  subject: z.string().min(1).max(200).optional(),
+  message: z.string().min(1).max(2000)
+})

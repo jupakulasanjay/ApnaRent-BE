@@ -12,6 +12,10 @@ CREATE TABLE IF NOT EXISTS properties (
   address           TEXT NOT NULL,
   locality          TEXT,
   city              TEXT,
+  state             TEXT,
+  pincode           TEXT,
+  latitude          NUMERIC(9, 6),
+  longitude         NUMERIC(9, 6),
 
   status            TEXT NOT NULL DEFAULT 'draft'
                       CHECK (status IN ('draft', 'pending_verification', 'active', 'rejected', 'expired')),

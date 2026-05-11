@@ -13,6 +13,10 @@ export const createPropertyBody = z.object({
   address:       z.string().min(1).max(500),
   locality:      z.string().min(1).max(120).optional(),
   city:          z.string().min(1).max(120).optional(),
+  state:         z.string().min(1).max(120).optional(),
+  pincode:       z.string().min(3).max(12).optional(),
+  latitude:      z.coerce.number().min(-90).max(90).optional(),
+  longitude:     z.coerce.number().min(-180).max(180).optional(),
   amenities:     amenitiesArray
 })
 

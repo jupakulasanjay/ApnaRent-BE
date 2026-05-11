@@ -2,13 +2,13 @@ import pool from "../config/db.js"
 
 const PROPERTY_COLS = `
   id, owner_id, title, description, price, property_type, area_sqft,
-  address, locality, city,
+  address, locality, city, state, pincode, latitude, longitude,
   status, rejection_reason, approved_by, approved_at, amenities, created_at
 `
 
 const WRITABLE = [
   "title", "description", "price", "property_type", "area_sqft",
-  "address", "locality", "city",
+  "address", "locality", "city", "state", "pincode", "latitude", "longitude",
   "amenities"
 ]
 

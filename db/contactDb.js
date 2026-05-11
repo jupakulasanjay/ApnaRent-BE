@@ -1,11 +1,26 @@
 import pool from "../config/db.js"
 
-export async function createContact({ userId, listingId = null, propertyId = null, message }) {
+const CONTACT_COLS = `id, user_id, listing_id, property_id, subject, message, created_at`
+
+export async function createContact({ userId, listingId = null, propertyId = null, subject = null, message }) {
   const { rows } = await pool.query(
-    `INSERT INTO contacts (user_id, listing_id, property_id, message)
-     VALUES ($1, $2, $3, $4)
-     RETURNING id, user_id, listing_id, property_id, message, created_at`,
-    [userId, listingId, propertyId, message]
+    `INSERT INTO contacts (user_id, listing_id, property_id, subject, message)
+     VALUES ($1, $2, $3, $4, $5)
+     RETURNING ${CONTACT_COLS}`,
+    [userId, listingId, propertyId, subject, message]
   )
   return rows[0]
+}
+
+export async function listAllContacts({ kind } = {}) {
+  let where = ""
+  if (kind === "listing")  where = "WHERE listing_id  IS NOT NULL"
+  if (kind === "property") where = "WHERE property_id IS NOT NULL"
+  if (kind === "general")  where = "WHERE listing_id  IS NULL AND property_id IS NULL"
+  const { rows } = await pool.query(
+    `SELECT ${CONTACT_COLS} FROM contacts
+     ${where}
+     ORDER BY created_at DESC`
+  )
+  return rows
 }
