@@ -65,3 +65,21 @@ export async function getPublic(req, res, next) {
     next(err)
   }
 }
+
+export async function removeImage(req, res, next) {
+  try {
+    await listingService.removeListingImage(req.user, req.params.id, req.params.imageId)
+    res.status(204).end()
+  } catch (err) {
+    next(err)
+  }
+}
+
+export async function remove(req, res, next) {
+  try {
+    await listingService.removeListing(req.user, req.params.id)
+    res.status(204).end()
+  } catch (err) {
+    next(err)
+  }
+}

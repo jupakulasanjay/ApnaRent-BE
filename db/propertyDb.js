@@ -129,3 +129,11 @@ export async function getPublicPropertyById(id) {
   )
   return rows[0] || null
 }
+
+export async function deleteProperty(id) {
+  const { rowCount } = await pool.query(
+    `DELETE FROM properties WHERE id = $1`,
+    [id]
+  )
+  return rowCount > 0
+}

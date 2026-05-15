@@ -4,9 +4,16 @@ import {
   updateProperty,
   setPropertyStatus,
   listPropertiesByOwner,
-  listPublicProperties
+  listPublicProperties,
+  deleteProperty
 } from "../db/propertyDb.js"
-import { addPropertyImages, listPropertyImages } from "../db/propertyImageDb.js"
+import {
+  addPropertyImages,
+  listPropertyImages,
+  getPropertyImage,
+  deletePropertyImage
+} from "../db/propertyImageDb.js"
+import { deleteObject, deleteObjects, s3KeyFromUrl } from "./s3Service.js"
 import { decoratePostedBy, decoratePostedByMany } from "./postedBy.js"
 
 function httpError(status, message) {
@@ -71,6 +78,48 @@ export async function listPublic(filters) {
     rows.map(async (p) => ({ ...p, images: await listPropertyImages(p.id) }))
   )
   return decoratePostedByMany(withImages)
+}
+
+async function assertCanDelete(requester, propertyId) {
+  const property = await getPropertyById(propertyId)
+  if (!property) throw httpError(404, "Property not found")
+
+  const isAdmin = requester.role === "admin"
+  const isOwner = property.owner_id === requester.id
+  if (!isAdmin && !isOwner) throw httpError(404, "Property not found")
+
+  if (!isAdmin && property.status === "active") {
+    throw httpError(403, "Active property cannot be deleted; unpublish first")
+  }
+  return property
+}
+
+export async function removePropertyImage(requester, propertyId, imageId) {
+  await assertCanDelete(requester, propertyId)
+
+  const image = await getPropertyImage(propertyId, imageId)
+  if (!image) throw httpError(404, "Image not found")
+
+  const key = s3KeyFromUrl(image.image_url)
+  if (key) await deleteObject(key)
+
+  await deletePropertyImage(propertyId, imageId)
+}
+
+export async function removeProperty(requester, propertyId) {
+  await assertCanDelete(requester, propertyId)
+
+  const images = await listPropertyImages(propertyId)
+  const keys = images.map((img) => s3KeyFromUrl(img.image_url)).filter(Boolean)
+
+  await deleteProperty(propertyId)
+
+  if (keys.length) {
+    const { errors } = await deleteObjects(keys)
+    if (errors.length) {
+      console.error(`Orphaned S3 objects for deleted property ${propertyId}:`, errors)
+    }
+  }
 }
 
 // Role-aware detail fetch — see listingService.getListingForRequester for rules.

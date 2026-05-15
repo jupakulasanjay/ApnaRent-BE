@@ -1,15 +1,19 @@
 import { Router } from "express"
 import {
   create, update, submit, uploadImages,
-  listMy, listPublic, getPublic
+  listMy, listPublic, getPublic, removeImage, remove
 } from "../controllers/listingController.js"
-import { authenticate, optionalAuthenticate, requireOwner } from "../middleware/authMiddleware.js"
+import {
+  authenticate, optionalAuthenticate, requireOwner, requireRole
+} from "../middleware/authMiddleware.js"
 import { validate } from "../middleware/validateMiddleware.js"
 import { upload, processImages } from "../middleware/uploadMiddleware.js"
 import {
   createListingBody, updateListingBody, publicListingsQuery
 } from "../validators/listingValidators.js"
-import { idParam } from "../validators/common.js"
+import { idParam, idAndImageIdParam } from "../validators/common.js"
+
+const ownerOrAdmin = requireRole("owner", "admin")
 
 const router = Router()
 
@@ -40,6 +44,19 @@ router.post("/:id/images",
   upload.array("images", 15),
   processImages("listing-images"),
   uploadImages
+)
+
+// Owner-or-admin destructive endpoints. Status gate (active blocks owners,
+// admins unrestricted) is enforced in the service layer.
+router.delete("/:id/images/:imageId",
+  authenticate, ownerOrAdmin,
+  validate({ params: idAndImageIdParam }),
+  removeImage
+)
+router.delete("/:id",
+  authenticate, ownerOrAdmin,
+  validate({ params: idParam }),
+  remove
 )
 
 export default router

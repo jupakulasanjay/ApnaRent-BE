@@ -1,8 +1,7 @@
 import multer from "multer"
 import sharp from "sharp"
-import fs from "fs/promises"
-import path from "path"
 import crypto from "crypto"
+import { uploadBuffer } from "../services/s3Service.js"
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024
 const MAX_FILES = 15
@@ -21,25 +20,21 @@ export const upload = multer({
 })
 
 // Factory: processImages("listing-images") or processImages("property-images").
-// Converts each uploaded file to WebP and writes to uploads/<subdir>/.
+// Converts each uploaded file to WebP and uploads to S3 under <subdir>/.
 export function processImages(subdir) {
-  const dir = path.posix.join("uploads", subdir)
   return async (req, res, next) => {
     try {
       req.imagePaths = []
       if (!req.files || req.files.length === 0) return next()
 
-      await fs.mkdir(dir, { recursive: true })
-
       req.imagePaths = await Promise.all(
         req.files.map(async (file) => {
-          const filename = `${Date.now()}-${crypto.randomBytes(6).toString("hex")}.webp`
-          const diskPath = path.join(dir, filename)
-          await sharp(file.buffer)
+          const webp = await sharp(file.buffer)
             .rotate()
             .webp({ quality: 82 })
-            .toFile(diskPath)
-          return `/${dir}/${filename}`
+            .toBuffer()
+          const key = `${subdir}/${Date.now()}-${crypto.randomBytes(6).toString("hex")}.webp`
+          return uploadBuffer(key, webp, "image/webp")
         })
       )
 

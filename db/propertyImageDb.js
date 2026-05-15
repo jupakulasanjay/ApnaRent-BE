@@ -22,3 +22,21 @@ export async function listPropertyImages(propertyId) {
   )
   return rows
 }
+
+export async function getPropertyImage(propertyId, imageId) {
+  const { rows } = await pool.query(
+    `SELECT id, property_id, image_url, created_at
+     FROM property_images
+     WHERE property_id = $1 AND id = $2`,
+    [propertyId, imageId]
+  )
+  return rows[0] || null
+}
+
+export async function deletePropertyImage(propertyId, imageId) {
+  const { rowCount } = await pool.query(
+    `DELETE FROM property_images WHERE property_id = $1 AND id = $2`,
+    [propertyId, imageId]
+  )
+  return rowCount > 0
+}

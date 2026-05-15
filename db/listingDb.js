@@ -127,3 +127,11 @@ export async function getPublicListingById(id) {
   )
   return rows[0] || null
 }
+
+export async function deleteListing(id) {
+  const { rowCount } = await pool.query(
+    `DELETE FROM listings WHERE id = $1`,
+    [id]
+  )
+  return rowCount > 0
+}
