@@ -74,8 +74,8 @@ after(() => {
   if (serverProc) serverProc.kill("SIGTERM")
 })
 
-test("POST /api/listings (owner) → response includes posted_by = owner's name", async () => {
-  const { status, json } = await req("POST", "/api/listings", {
+test("POST /api/rentals (owner) → response includes posted_by = owner's name", async () => {
+  const { status, json } = await req("POST", "/api/rentals", {
     token: ctx.owner,
     body: {
       title: "2BHK in Indiranagar",
@@ -91,8 +91,8 @@ test("POST /api/listings (owner) → response includes posted_by = owner's name"
   ctx.listingId = json.id
 })
 
-test("PUT /api/listings/:id response includes posted_by", async () => {
-  const { status, json } = await req("PUT", `/api/listings/${ctx.listingId}`, {
+test("PUT /api/rentals/:id response includes posted_by", async () => {
+  const { status, json } = await req("PUT", `/api/rentals/${ctx.listingId}`, {
     token: ctx.owner,
     body: { rent: 36000 }
   })
@@ -101,15 +101,15 @@ test("PUT /api/listings/:id response includes posted_by", async () => {
   assert.equal(json.posted_by, "Lara Lister")
 })
 
-test("POST /api/listings/:id/submit response includes posted_by", async () => {
-  const { status, json } = await req("POST", `/api/listings/${ctx.listingId}/submit`, { token: ctx.owner })
+test("POST /api/rentals/:id/submit response includes posted_by", async () => {
+  const { status, json } = await req("POST", `/api/rentals/${ctx.listingId}/submit`, { token: ctx.owner })
   assert.equal(status, 200)
   assert.equal(json.status, "pending_verification")
   assert.equal(json.posted_by, "Lara Lister")
 })
 
-test("GET /api/admin/listings/pending → each item carries posted_by", async () => {
-  const { status, json } = await req("GET", "/api/admin/listings/pending", { token: ctx.admin })
+test("GET /api/admin/rentals/pending → each item carries posted_by", async () => {
+  const { status, json } = await req("GET", "/api/admin/rentals/pending", { token: ctx.admin })
   assert.equal(status, 200)
   assert.ok(json.data.length >= 1)
   for (const l of json.data) {
@@ -119,15 +119,15 @@ test("GET /api/admin/listings/pending → each item carries posted_by", async ()
   assert.equal(ours.posted_by, "Lara Lister")
 })
 
-test("POST /api/admin/listings/:id/approve → response includes posted_by", async () => {
-  const { status, json } = await req("POST", `/api/admin/listings/${ctx.listingId}/approve`, { token: ctx.admin })
+test("POST /api/admin/rentals/:id/approve → response includes posted_by", async () => {
+  const { status, json } = await req("POST", `/api/admin/rentals/${ctx.listingId}/approve`, { token: ctx.admin })
   assert.equal(status, 200)
   assert.equal(json.status, "active")
   assert.equal(json.posted_by, "Lara Lister")
 })
 
-test("GET /api/listings (public list) → every item has posted_by", async () => {
-  const { status, json } = await req("GET", "/api/listings")
+test("GET /api/rentals (public list) → every item has posted_by", async () => {
+  const { status, json } = await req("GET", "/api/rentals")
   assert.equal(status, 200)
   for (const l of json.data) {
     assert.ok(typeof l.posted_by === "string" && l.posted_by.length > 0)
@@ -136,22 +136,22 @@ test("GET /api/listings (public list) → every item has posted_by", async () =>
   assert.equal(ours.posted_by, "Lara Lister")
 })
 
-test("GET /api/listings/:id → posted_by present", async () => {
-  const { status, json } = await req("GET", `/api/listings/${ctx.listingId}`)
+test("GET /api/rentals/:id → posted_by present", async () => {
+  const { status, json } = await req("GET", `/api/rentals/${ctx.listingId}`)
   assert.equal(status, 200)
   assert.equal(json.posted_by, "Lara Lister")
 })
 
-test("GET /api/listings/my → posted_by present on each item", async () => {
-  const { status, json } = await req("GET", "/api/listings/my", { token: ctx.owner })
+test("GET /api/rentals/owned → posted_by present on each item", async () => {
+  const { status, json } = await req("GET", "/api/rentals/owned", { token: ctx.owner })
   assert.equal(status, 200)
   for (const l of json.data) {
     assert.equal(l.posted_by, "Lara Lister")
   }
 })
 
-test("POST /api/search → results[] each have posted_by (regex fallback path)", async () => {
-  const { status, json } = await req("POST", "/api/search", {
+test("POST /api/search/rentals → results[] each have posted_by (regex fallback path)", async () => {
+  const { status, json } = await req("POST", "/api/search/rentals", {
     body: { query: "2bhk indiranagar" }
   })
   assert.equal(status, 200)
@@ -175,7 +175,7 @@ test("listing whose owner_id is the admin user → posted_by = ApnaRent", async 
   // admin-only endpoint for re-assigning ownership, so we'll use a quick
   // raw query through pg via the same env the server has.
   //
-  // (If/when admin gets a POST /api/listings flow, replace this with a
+  // (If/when admin gets a POST /api/rentals flow, replace this with a
   // proper create call.)
   const pg = await import("pg")
   const { Client } = pg.default
@@ -189,7 +189,7 @@ test("listing whose owner_id is the admin user → posted_by = ApnaRent", async 
   await client.connect()
   try {
     // Create a fresh listing as owner.
-    const created = await req("POST", "/api/listings", {
+    const created = await req("POST", "/api/rentals", {
       token: ctx.owner,
       body: { title: "soon-to-be-apnarent", rent: 25000, address: "x", city: "Bangalore" }
     })
@@ -201,7 +201,7 @@ test("listing whose owner_id is the admin user → posted_by = ApnaRent", async 
     await client.query(`UPDATE listings SET owner_id = $1 WHERE id = $2`, [adminId, listingId])
     await client.query(`UPDATE listings SET status = 'active' WHERE id = $1`, [listingId])
 
-    const { status, json } = await req("GET", `/api/listings/${listingId}`)
+    const { status, json } = await req("GET", `/api/rentals/${listingId}`)
     assert.equal(status, 200)
     assert.equal(json.posted_by, "ApnaRent")
   } finally {

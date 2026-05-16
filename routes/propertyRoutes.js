@@ -18,7 +18,7 @@ const ownerOrAdmin = requireRole("owner", "admin")
 
 // Public — active properties only
 router.get("/",     validate({ query: publicPropertiesQuery }), listPublic)
-router.get("/my",   authenticate, ownerOrAdmin, listMy)
+router.get("/owned", authenticate, ownerOrAdmin, listMy)
 router.get("/:id",  optionalAuthenticate, validate({ params: idParam }), getPublic)
 
 // Owner + admin writes (each can only edit properties they themselves own)

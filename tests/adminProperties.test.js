@@ -136,8 +136,8 @@ test("GET /api/properties/:id returns posted_by", async () => {
   assert.equal(ownerProp.json.posted_by, "Olive Owner")
 })
 
-test("admin /api/properties/my returns only the admin's own properties, tagged ApnaRent", async () => {
-  const { status, json } = await req("GET", "/api/properties/my", { token: ctx.admin })
+test("admin /api/properties/owned returns only the admin's own properties, tagged ApnaRent", async () => {
+  const { status, json } = await req("GET", "/api/properties/owned", { token: ctx.admin })
   assert.equal(status, 200)
   // Should include the admin's flagship but NOT the owner's plot.
   const ids = json.data.map((p) => p.id)

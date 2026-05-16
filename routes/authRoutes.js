@@ -6,9 +6,9 @@ import { registerBody, loginBody } from "../validators/authValidators.js"
 
 const router = Router()
 
-router.post("/register", validate({ body: registerBody }), register)
-router.post("/login",    validate({ body: loginBody }),    login)
-router.get("/me",        authenticate, me)
-router.post("/logout",   authenticate, logout)
+router.post("/register",    validate({ body: registerBody }), register)
+router.post("/login",       validate({ body: loginBody }),    login)
+router.get("/current-user", authenticate, me)
+router.post("/logout",      authenticate, logout)
 
 export default router

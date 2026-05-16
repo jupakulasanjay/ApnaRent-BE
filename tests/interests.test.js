@@ -70,16 +70,16 @@ before(async () => {
   assert.ok(ctx.admin, "admin login failed")
 
   // Active listing
-  const lc = await req("POST", "/api/listings", {
+  const lc = await req("POST", "/api/rentals", {
     token: ctx.owner,
     body: { title: "active L", rent: 50000, address: "addr L", city: "Bangalore" }
   })
   ctx.listingActive = lc.json.id
-  await req("POST", `/api/listings/${ctx.listingActive}/submit`, { token: ctx.owner })
-  await req("POST", `/api/admin/listings/${ctx.listingActive}/approve`, { token: ctx.admin })
+  await req("POST", `/api/rentals/${ctx.listingActive}/submit`, { token: ctx.owner })
+  await req("POST", `/api/admin/rentals/${ctx.listingActive}/approve`, { token: ctx.admin })
 
   // Draft listing (not visible to tenant)
-  const ld = await req("POST", "/api/listings", {
+  const ld = await req("POST", "/api/rentals", {
     token: ctx.owner,
     body: { title: "draft L", rent: 60000, address: "addr Ld", city: "Bangalore" }
   })
@@ -98,13 +98,13 @@ before(async () => {
   await req("POST", `/api/admin/properties/${ctx.propertyActive}/approve`, { token: ctx.admin })
 
   // Second active listing (used for ordering check)
-  const l2 = await req("POST", "/api/listings", {
+  const l2 = await req("POST", "/api/rentals", {
     token: ctx.owner,
     body: { title: "active L2", rent: 40000, address: "addr L2", city: "Bangalore" }
   })
   ctx.listingActive2 = l2.json.id
-  await req("POST", `/api/listings/${ctx.listingActive2}/submit`, { token: ctx.owner })
-  await req("POST", `/api/admin/listings/${ctx.listingActive2}/approve`, { token: ctx.admin })
+  await req("POST", `/api/rentals/${ctx.listingActive2}/submit`, { token: ctx.owner })
+  await req("POST", `/api/admin/rentals/${ctx.listingActive2}/approve`, { token: ctx.admin })
 })
 
 after(() => {

@@ -144,7 +144,7 @@ test("Owner can persist selected + custom amenities on a property; reads back as
 })
 
 test("Listing supports amenities[] on create + update", async () => {
-  const created = await req("POST", "/api/listings", {
+  const created = await req("POST", "/api/rentals", {
     token: ctx.owner,
     body: {
       title: "2BHK with gym",
@@ -157,7 +157,7 @@ test("Listing supports amenities[] on create + update", async () => {
   assert.equal(created.status, 201)
   assert.deepEqual(created.json.amenities, ["gym", "covered_basement_parking"])
 
-  const updated = await req("PUT", `/api/listings/${created.json.id}`, {
+  const updated = await req("PUT", `/api/rentals/${created.json.id}`, {
     token: ctx.owner,
     body: { amenities: ["gym", "swimming_pool", "Custom: rooftop terrace"] }
   })

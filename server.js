@@ -5,7 +5,7 @@ import path from "path"
 
 import authRoutes from "./routes/authRoutes.js"
 import propertyRoutes from "./routes/propertyRoutes.js"
-import listingRoutes from "./routes/listingRoutes.js"
+import rentalRoutes from "./routes/rentalRoutes.js"
 import adminRoutes from "./routes/adminRoutes.js"
 import searchRoutes from "./routes/searchRoutes.js"
 import contactRoutes from "./routes/contactRoutes.js"
@@ -24,21 +24,9 @@ app.get("/", (req, res) => {
   res.send("ApnaRent API v1.1 running 🚀")
 })
 
-// Legacy redirects — drop after the FE deprecation window closes.
-// 308 preserves method + body (so POST/PUT redirect correctly).
-function legacyRedirect(fromPrefix, toPrefix) {
-  return (req, res) => {
-    const tail = req.originalUrl.slice(fromPrefix.length)
-    res.redirect(308, toPrefix + tail)
-  }
-}
-app.use("/api/buildings",      legacyRedirect("/api/buildings",      "/api/properties"))
-app.use("/api/units",          legacyRedirect("/api/units",          "/api/listings"))
-app.use("/api/admin/units",    legacyRedirect("/api/admin/units",    "/api/admin/listings"))
-
 app.use("/api/auth",       authRoutes)
 app.use("/api/properties", propertyRoutes)
-app.use("/api/listings",   listingRoutes)
+app.use("/api/rentals",    rentalRoutes)
 app.use("/api/admin",      adminRoutes)
 app.use("/api/search",     searchRoutes)
 app.use("/api/contact",    contactRoutes)

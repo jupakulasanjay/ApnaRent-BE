@@ -121,6 +121,55 @@ export async function listPublicProperties({
   return rows
 }
 
+export async function searchPublicProperties({
+  city, locality, property_type, min_price, max_price,
+  centroid, radiusKm,
+  limit = 50, offset = 0
+}) {
+  const where = [`status = 'active'`]
+  const params = []
+  let i = 1
+
+  if (city)              { where.push(`city ILIKE $${i++}`);     params.push(city) }
+  if (property_type)     { where.push(`property_type = $${i++}`); params.push(property_type) }
+  if (max_price != null) { where.push(`price <= $${i++}`);       params.push(max_price) }
+  if (min_price != null) { where.push(`price >= $${i++}`);       params.push(min_price) }
+
+  if (centroid && radiusKm) {
+    const cLat = `$${i++}`; params.push(centroid.latitude)
+    const cLng = `$${i++}`; params.push(centroid.longitude)
+    const radM = `$${i++}`; params.push(radiusKm * 1000)
+    const litLoc = locality ? `$${i++}` : null
+    if (litLoc) params.push(locality)
+
+    const radiusClause = `
+      latitude IS NOT NULL AND longitude IS NOT NULL
+      AND earth_box(ll_to_earth(${cLat}::float8, ${cLng}::float8), ${radM}) @>
+          ll_to_earth(latitude::float8, longitude::float8)
+      AND earth_distance(ll_to_earth(${cLat}::float8, ${cLng}::float8),
+                         ll_to_earth(latitude::float8, longitude::float8)) <= ${radM}
+    `
+    const nullCoordFallback = litLoc
+      ? `(latitude IS NULL AND locality ILIKE ${litLoc})`
+      : `false`
+
+    where.push(`((${radiusClause}) OR ${nullCoordFallback})`)
+  } else if (locality) {
+    where.push(`locality ILIKE $${i++}`); params.push(locality)
+  }
+
+  params.push(limit, offset)
+
+  const { rows } = await pool.query(
+    `SELECT ${PROPERTY_COLS} FROM properties
+     WHERE ${where.join(" AND ")}
+     ORDER BY created_at DESC
+     LIMIT $${i++} OFFSET $${i++}`,
+    params
+  )
+  return rows
+}
+
 export async function getPublicPropertyById(id) {
   const { rows } = await pool.query(
     `SELECT ${PROPERTY_COLS} FROM properties

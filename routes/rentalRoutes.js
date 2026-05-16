@@ -17,10 +17,10 @@ const ownerOrAdmin = requireRole("owner", "admin")
 
 const router = Router()
 
-// Public — active listings only
-router.get("/",     validate({ query: publicListingsQuery }), listPublic)
-router.get("/my",   authenticate, requireOwner, listMy)
-router.get("/:id",  optionalAuthenticate, validate({ params: idParam }), getPublic)
+// Public — active rentals only
+router.get("/",      validate({ query: publicListingsQuery }), listPublic)
+router.get("/owned", authenticate, requireOwner, listMy)
+router.get("/:id",   optionalAuthenticate, validate({ params: idParam }), getPublic)
 
 // Owner-only writes
 router.post("/",

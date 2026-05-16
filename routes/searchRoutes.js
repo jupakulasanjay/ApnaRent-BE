@@ -5,10 +5,10 @@ import { searchBody } from "../validators/searchValidators.js"
 
 const router = Router()
 
-// Rental (listings) NL search — unchanged.
-router.post("/",           validate({ body: searchBody }), search)
+// Rentals NL search.
+router.post("/rentals",    validate({ body: searchBody }), search)
 
-// Property (for-sale) NL search — same body shape, different extraction + data source.
+// Property (for-sale) NL search — same body shape, different extraction.
 router.post("/properties", validate({ body: searchBody }), searchProperties)
 
 export default router

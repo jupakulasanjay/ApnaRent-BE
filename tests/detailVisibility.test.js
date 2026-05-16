@@ -73,7 +73,7 @@ before(async () => {
   // --- Listings ---
   // Owner A: one listing in each of {draft, pending_verification, active, rejected}
   const mkListing = async (title) => {
-    const { json } = await req("POST", "/api/listings", {
+    const { json } = await req("POST", "/api/rentals", {
       token: ctx.ownerA,
       body: {
         title, rent: 50000, bhk: 2,
@@ -87,18 +87,18 @@ before(async () => {
   ctx.listingActiveA    = await mkListing("active A")
   ctx.listingRejectedA  = await mkListing("rejected A")
 
-  await req("POST", `/api/listings/${ctx.listingPendingA}/submit`,  { token: ctx.ownerA })
-  await req("POST", `/api/listings/${ctx.listingActiveA}/submit`,   { token: ctx.ownerA })
-  await req("POST", `/api/admin/listings/${ctx.listingActiveA}/approve`, { token: ctx.admin })
+  await req("POST", `/api/rentals/${ctx.listingPendingA}/submit`,  { token: ctx.ownerA })
+  await req("POST", `/api/rentals/${ctx.listingActiveA}/submit`,   { token: ctx.ownerA })
+  await req("POST", `/api/admin/rentals/${ctx.listingActiveA}/approve`, { token: ctx.admin })
 
-  await req("POST", `/api/listings/${ctx.listingRejectedA}/submit`, { token: ctx.ownerA })
-  await req("POST", `/api/admin/listings/${ctx.listingRejectedA}/reject`, {
+  await req("POST", `/api/rentals/${ctx.listingRejectedA}/submit`, { token: ctx.ownerA })
+  await req("POST", `/api/admin/rentals/${ctx.listingRejectedA}/reject`, {
     token: ctx.admin,
     body: { reason: "missing kitchen photos" }
   })
 
   // Owner B: one draft to test cross-owner visibility
-  const { json: bDraft } = await req("POST", "/api/listings", {
+  const { json: bDraft } = await req("POST", "/api/rentals", {
     token: ctx.ownerB,
     body: { title: "draft B", rent: 45000, address: "b addr", city: "Bangalore" }
   })
@@ -122,18 +122,18 @@ after(() => {
 // ----- Required cases -----
 
 test("tenant fetching owner's draft listing → 404 (existence not leaked)", async () => {
-  const { status, json } = await req("GET", `/api/listings/${ctx.listingDraftA}`, { token: ctx.tenant })
+  const { status, json } = await req("GET", `/api/rentals/${ctx.listingDraftA}`, { token: ctx.tenant })
   assert.equal(status, 404)
   assert.equal(json.error, "Listing not found")
 })
 
 test("anonymous fetching owner's draft listing → 404", async () => {
-  const { status } = await req("GET", `/api/listings/${ctx.listingDraftA}`)
+  const { status } = await req("GET", `/api/rentals/${ctx.listingDraftA}`)
   assert.equal(status, 404)
 })
 
 test("owner fetching their own draft → 200 with full record", async () => {
-  const { status, json } = await req("GET", `/api/listings/${ctx.listingDraftA}`, { token: ctx.ownerA })
+  const { status, json } = await req("GET", `/api/rentals/${ctx.listingDraftA}`, { token: ctx.ownerA })
   assert.equal(status, 200)
   assert.equal(json.id, ctx.listingDraftA)
   assert.equal(json.status, "draft")
@@ -141,40 +141,40 @@ test("owner fetching their own draft → 200 with full record", async () => {
 })
 
 test("owner fetching their own pending_verification → 200", async () => {
-  const { status, json } = await req("GET", `/api/listings/${ctx.listingPendingA}`, { token: ctx.ownerA })
+  const { status, json } = await req("GET", `/api/rentals/${ctx.listingPendingA}`, { token: ctx.ownerA })
   assert.equal(status, 200)
   assert.equal(json.status, "pending_verification")
 })
 
 test("owner fetching their own rejected → 200 and includes rejection_reason", async () => {
-  const { status, json } = await req("GET", `/api/listings/${ctx.listingRejectedA}`, { token: ctx.ownerA })
+  const { status, json } = await req("GET", `/api/rentals/${ctx.listingRejectedA}`, { token: ctx.ownerA })
   assert.equal(status, 200)
   assert.equal(json.status, "rejected")
   assert.equal(json.rejection_reason, "missing kitchen photos")
 })
 
 test("owner fetching ANOTHER owner's draft → 404", async () => {
-  const { status, json } = await req("GET", `/api/listings/${ctx.listingDraftB}`, { token: ctx.ownerA })
+  const { status, json } = await req("GET", `/api/rentals/${ctx.listingDraftB}`, { token: ctx.ownerA })
   assert.equal(status, 404)
   assert.equal(json.error, "Listing not found")
 })
 
 test("admin fetching any listing regardless of status → 200", async () => {
   for (const id of [ctx.listingDraftA, ctx.listingPendingA, ctx.listingRejectedA, ctx.listingDraftB]) {
-    const { status, json } = await req("GET", `/api/listings/${id}`, { token: ctx.admin })
+    const { status, json } = await req("GET", `/api/rentals/${id}`, { token: ctx.admin })
     assert.equal(status, 200, `admin could not read listing ${id}`)
     assert.ok(json.status !== "active" || id === ctx.listingActiveA)
   }
 })
 
 test("tenant fetching an active listing → 200 (unchanged public behavior)", async () => {
-  const { status, json } = await req("GET", `/api/listings/${ctx.listingActiveA}`, { token: ctx.tenant })
+  const { status, json } = await req("GET", `/api/rentals/${ctx.listingActiveA}`, { token: ctx.tenant })
   assert.equal(status, 200)
   assert.equal(json.status, "active")
 })
 
 test("anonymous fetching an active listing → 200 (unchanged)", async () => {
-  const { status, json } = await req("GET", `/api/listings/${ctx.listingActiveA}`)
+  const { status, json } = await req("GET", `/api/rentals/${ctx.listingActiveA}`)
   assert.equal(status, 200)
   assert.equal(json.status, "active")
 })
@@ -189,9 +189,9 @@ test("same visibility rules apply to properties: owner sees own draft, tenant ge
   assert.equal(tenantCall.json.error, "Property not found")
 })
 
-test("list endpoints stay active-only (regression): public /api/listings hides drafts", async () => {
+test("list endpoints stay active-only (regression): public /api/rentals hides drafts", async () => {
   // Anonymous listing browse — should return only the one active listing.
-  const { status, json } = await req("GET", "/api/listings")
+  const { status, json } = await req("GET", "/api/rentals")
   assert.equal(status, 200)
   const ids = json.data.map((l) => l.id)
   assert.ok(ids.includes(ctx.listingActiveA))

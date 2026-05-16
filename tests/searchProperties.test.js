@@ -203,9 +203,9 @@ test("case 6: empty body → 400 validation error", async () => {
   assert.ok(json.details.some((d) => d.path === "query"))
 })
 
-test("/api/search (rentals) is unchanged and does not accept property types", async () => {
+test("/api/search/rentals is unchanged and does not accept property types", async () => {
   // The rental endpoint still returns filters with nulls; verify the contract didn't drift.
-  const { status, json } = await post("/api/search", { query: "2bhk whitefield under 60k" })
+  const { status, json } = await post("/api/search/rentals", { query: "2bhk whitefield under 60k" })
   assert.equal(status, 200)
   assert.ok("bhk" in json.filters)
   assert.ok("max_rent" in json.filters)
