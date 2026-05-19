@@ -5,9 +5,9 @@ import { searchPublicProperties } from "../db/propertyDb.js"
 import { listPropertyImages } from "../db/propertyImageDb.js"
 import { resolveLocalityCentroid } from "./geocodeService.js"
 import { decoratePostedByMany } from "./postedBy.js"
+import { SEARCH_RADIUS_KM } from "./_searchConfig.js"
 
-const DEFAULT_RADIUS_KM = Number(process.env.SEARCH_RADIUS_KM) || 15
-const WIDE_RADIUS_KM = 30
+const DEFAULT_RADIUS_KM = SEARCH_RADIUS_KM
 const SUGGESTION_CAP = 10
 const PRICE_RELAX_FACTOR = 1.2
 
@@ -331,54 +331,30 @@ export async function naturalLanguageSearch(query) {
   const seen = new Set()
   const collected = []
 
-  // Rung 1: widen radius to WIDE_RADIUS_KM (requires a centroid)
-  if (centroid) {
-    const r1 = await searchPublicListings({
-      city: filters.city || undefined,
-      locality: filters.locality || undefined,
-      bhk: filters.bhk ?? undefined,
-      maxRent: filters.max_rent ?? undefined,
-      centroid, radiusKm: WIDE_RADIUS_KM, limit: SUGGESTION_CAP
-    })
-    appendUniqueById(collected, r1, seen, SUGGESTION_CAP)
-  }
-
-  // Rung 2: drop radius, keep literal locality/city if any
+  // Rung 1: drop radius, keep literal locality/city if any
   if (collected.length < SUGGESTION_CAP) {
-    const r2 = await searchPublicListings({
+    const r1 = await searchPublicListings({
       city: filters.city || undefined,
       locality: filters.locality || undefined,
       bhk: filters.bhk ?? undefined,
       maxRent: filters.max_rent ?? undefined,
       limit: SUGGESTION_CAP
     })
-    appendUniqueById(collected, r2, seen, SUGGESTION_CAP)
+    appendUniqueById(collected, r1, seen, SUGGESTION_CAP)
   }
 
-  // Rung 3: relax max_rent by +20%
+  // Rung 2: relax max_rent by +20%
   if (collected.length < SUGGESTION_CAP && filters.max_rent != null) {
-    const r3 = await searchPublicListings({
+    const r2 = await searchPublicListings({
       city: filters.city || undefined,
       locality: filters.locality || undefined,
       bhk: filters.bhk ?? undefined,
       maxRent: Math.round(filters.max_rent * PRICE_RELAX_FACTOR),
       limit: SUGGESTION_CAP
     })
-    appendUniqueById(collected, r3, seen, SUGGESTION_CAP)
+    appendUniqueById(collected, r2, seen, SUGGESTION_CAP)
   }
 
-  // Rung 4: drop BHK (keep relaxed price)
-  if (collected.length < SUGGESTION_CAP && filters.bhk != null) {
-    const r4 = await searchPublicListings({
-      city: filters.city || undefined,
-      locality: filters.locality || undefined,
-      maxRent: filters.max_rent != null
-        ? Math.round(filters.max_rent * PRICE_RELAX_FACTOR)
-        : undefined,
-      limit: SUGGESTION_CAP
-    })
-    appendUniqueById(collected, r4, seen, SUGGESTION_CAP)
-  }
 
   return {
     filters,
@@ -431,23 +407,15 @@ export async function naturalLanguagePropertySearch(query) {
   const seen = new Set()
   const collected = []
 
-  // Rung 1: widen radius
-  if (centroid) {
-    const r1 = await searchPublicProperties({
-      ...filters, centroid, radiusKm: WIDE_RADIUS_KM, limit: SUGGESTION_CAP
-    })
+  // Rung 1: drop radius
+  if (collected.length < SUGGESTION_CAP) {
+    const r1 = await searchPublicProperties({ ...filters, limit: SUGGESTION_CAP })
     appendUniqueById(collected, r1, seen, SUGGESTION_CAP)
   }
 
-  // Rung 2: drop radius
-  if (collected.length < SUGGESTION_CAP) {
-    const r2 = await searchPublicProperties({ ...filters, limit: SUGGESTION_CAP })
-    appendUniqueById(collected, r2, seen, SUGGESTION_CAP)
-  }
-
-  // Rung 3: relax price by ±20% — max bumped up, min bumped down.
+  // Rung 2: relax price by ±20% — max bumped up, min bumped down.
   if (collected.length < SUGGESTION_CAP && (filters.max_price != null || filters.min_price != null)) {
-    const r3 = await searchPublicProperties({
+    const r2 = await searchPublicProperties({
       city:          filters.city,
       locality:      filters.locality,
       property_type: filters.property_type,
@@ -459,12 +427,12 @@ export async function naturalLanguagePropertySearch(query) {
         : undefined,
       limit: SUGGESTION_CAP
     })
-    appendUniqueById(collected, r3, seen, SUGGESTION_CAP)
+    appendUniqueById(collected, r2, seen, SUGGESTION_CAP)
   }
 
-  // Rung 4: drop property_type (keep ±20% price)
+  // Rung 3: drop property_type (keep ±20% price)
   if (collected.length < SUGGESTION_CAP && filters.property_type) {
-    const r4 = await searchPublicProperties({
+    const r3 = await searchPublicProperties({
       city:      filters.city,
       locality:  filters.locality,
       max_price: filters.max_price != null
@@ -475,8 +443,9 @@ export async function naturalLanguagePropertySearch(query) {
         : undefined,
       limit: SUGGESTION_CAP
     })
-    appendUniqueById(collected, r4, seen, SUGGESTION_CAP)
+    appendUniqueById(collected, r3, seen, SUGGESTION_CAP)
   }
+
 
   return {
     filters,

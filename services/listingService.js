@@ -9,8 +9,9 @@ import {
   deleteListing
 } from "../db/listingDb.js"
 import { resolveLocalityCentroid } from "./geocodeService.js"
+import { SEARCH_RADIUS_KM } from "./_searchConfig.js"
 
-const PUBLIC_LIST_RADIUS_KM = 15
+const PUBLIC_LIST_RADIUS_KM = SEARCH_RADIUS_KM
 import {
   addListingImages,
   listListingImages,
