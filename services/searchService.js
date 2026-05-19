@@ -128,6 +128,12 @@ Location:
   - When the phrase is ambiguous and only one place is named, prefer city.
 
 Ignore bedroom/rent/furnishing fields — those are rental concepts, not relevant here.
+
+CRITICAL — Do NOT infer property_type from BHK or bedroom counts. A "2bhk" can
+sit on a plot, in a villa, or in an apartment. Set property_type ONLY when the
+user explicitly names one of the synonyms above. If the user mentions BHK
+without a type, leave property_type as null.
+
 If the query is off-topic or unintelligible, return all nulls.`
 
 async function extractPropertyFiltersWithClaude(query) {
