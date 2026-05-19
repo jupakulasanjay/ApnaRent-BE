@@ -48,10 +48,10 @@ export async function listMy(req, res, next) {
 export async function listPublic(req, res, next) {
   try {
     const { city, locality, bhk, max_rent, limit, offset } = req.query
-    const rows = await listingService.listPublic({
+    const { rows, total } = await listingService.listPublic({
       city, locality, bhk, maxRent: max_rent, limit, offset
     })
-    res.json({ count: rows.length, data: rows })
+    res.json({ count: total, limit, offset, data: rows })
   } catch (err) {
     next(err)
   }

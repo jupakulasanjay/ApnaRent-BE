@@ -47,8 +47,9 @@ export async function listMy(req, res, next) {
 
 export async function listPublic(req, res, next) {
   try {
-    const rows = await propertyService.listPublic(req.query)
-    res.json({ count: rows.length, data: rows })
+    const { rows, total } = await propertyService.listPublic(req.query)
+    const { limit, offset } = req.query
+    res.json({ count: total, limit, offset, data: rows })
   } catch (err) {
     next(err)
   }

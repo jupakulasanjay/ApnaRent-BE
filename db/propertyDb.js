@@ -95,30 +95,74 @@ export async function listPropertiesByStatus({ status, limit = 50, offset = 0 })
   return rows
 }
 
-export async function listPublicProperties({
-  city, locality, property_type, max_price, min_price,
-  limit = 20, offset = 0
+// See db/listingDb.js → buildPublicListingsWhere for the same shape.
+function buildPublicPropertiesWhere({
+  city, locality, property_type, max_price, min_price, centroid, radiusKm
 }) {
   const where = [`status = 'active'`]
   const params = []
   let i = 1
 
-  if (city)          { where.push(`city ILIKE $${i++}`);     params.push(city) }
-  if (locality)      { where.push(`locality ILIKE $${i++}`); params.push(locality) }
-  if (property_type) { where.push(`property_type = $${i++}`); params.push(property_type) }
-  if (max_price != null) { where.push(`price <= $${i++}`);   params.push(max_price) }
-  if (min_price != null) { where.push(`price >= $${i++}`);   params.push(min_price) }
+  if (city)              { where.push(`city ILIKE $${i++}`);      params.push(city) }
+  if (property_type)     { where.push(`property_type = $${i++}`); params.push(property_type) }
+  if (max_price != null) { where.push(`price <= $${i++}`);        params.push(max_price) }
+  if (min_price != null) { where.push(`price >= $${i++}`);        params.push(min_price) }
 
+  let distanceExpr = null
+  if (centroid && radiusKm) {
+    const cLat = `$${i++}`; params.push(centroid.latitude)
+    const cLng = `$${i++}`; params.push(centroid.longitude)
+    const radM = `$${i++}`; params.push(radiusKm * 1000)
+    where.push(`latitude IS NOT NULL AND longitude IS NOT NULL`)
+    where.push(`earth_box(ll_to_earth(${cLat}::float8, ${cLng}::float8), ${radM}) @>
+                ll_to_earth(latitude::float8, longitude::float8)`)
+    where.push(`earth_distance(ll_to_earth(${cLat}::float8, ${cLng}::float8),
+                               ll_to_earth(latitude::float8, longitude::float8)) <= ${radM}`)
+    distanceExpr = `earth_distance(ll_to_earth(${cLat}::float8, ${cLng}::float8),
+                                   ll_to_earth(latitude::float8, longitude::float8))`
+  } else if (locality) {
+    where.push(`locality ILIKE $${i++}`); params.push(locality)
+  }
+
+  return { whereSql: where.join(" AND "), params, nextIdx: i, distanceExpr }
+}
+
+export async function listPublicProperties({
+  city, locality, property_type, max_price, min_price,
+  centroid, radiusKm,
+  limit = 20, offset = 0
+}) {
+  const { whereSql, params, nextIdx, distanceExpr } = buildPublicPropertiesWhere({
+    city, locality, property_type, max_price, min_price, centroid, radiusKm
+  })
+  let i = nextIdx
   params.push(limit, offset)
+
+  const orderBy = distanceExpr
+    ? `${distanceExpr} ASC, created_at DESC`
+    : `created_at DESC`
 
   const { rows } = await pool.query(
     `SELECT ${PROPERTY_COLS} FROM properties
-     WHERE ${where.join(" AND ")}
-     ORDER BY created_at DESC
+     WHERE ${whereSql}
+     ORDER BY ${orderBy}
      LIMIT $${i++} OFFSET $${i++}`,
     params
   )
   return rows
+}
+
+export async function countPublicProperties({
+  city, locality, property_type, max_price, min_price, centroid, radiusKm
+}) {
+  const { whereSql, params } = buildPublicPropertiesWhere({
+    city, locality, property_type, max_price, min_price, centroid, radiusKm
+  })
+  const { rows } = await pool.query(
+    `SELECT COUNT(*)::int AS total FROM properties WHERE ${whereSql}`,
+    params
+  )
+  return rows[0].total
 }
 
 export async function searchPublicProperties({

@@ -5,8 +5,12 @@ import {
   setListingStatus,
   listListingsByOwner,
   listPublicListings,
+  countPublicListings,
   deleteListing
 } from "../db/listingDb.js"
+import { resolveLocalityCentroid } from "./geocodeService.js"
+
+const PUBLIC_LIST_RADIUS_KM = 15
 import {
   addListingImages,
   listListingImages,
@@ -65,12 +69,31 @@ export async function listMyListings(ownerId) {
   return decoratePostedByMany(withImages)
 }
 
+// Public rental browse. When a `locality` is supplied, resolve it to a
+// centroid via the Google-backed geocode cache (`localities` table →
+// Google fallback on miss) and upgrade to a 15km geo-radius filter
+// ranked by distance ASC. If the locality can't be resolved, fall back
+// to literal ILIKE. `total` reflects the count after the same filter
+// is applied — not just the current page.
 export async function listPublic(filters) {
-  const rows = await listPublicListings(filters)
+  const centroid = filters.locality
+    ? await resolveLocalityCentroid(filters.city || "Bangalore", filters.locality)
+    : null
+
+  const dbArgs = centroid
+    ? { ...filters, centroid, radiusKm: PUBLIC_LIST_RADIUS_KM }
+    : filters
+
+  const [rows, total] = await Promise.all([
+    listPublicListings(dbArgs),
+    countPublicListings(dbArgs)
+  ])
+
   const withImages = await Promise.all(
     rows.map(async (l) => ({ ...l, images: await listListingImages(l.id) }))
   )
-  return decoratePostedByMany(withImages)
+  const decorated = await decoratePostedByMany(withImages)
+  return { rows: decorated, total }
 }
 
 // Returns the listing if the requester may mutate/delete it. Owners may
