@@ -1,25 +1,30 @@
-import { Router } from "express"
-import { create, createGeneral } from "../controllers/contactController.js"
-import { authenticate, requireRole } from "../middleware/authMiddleware.js"
-import { validate } from "../middleware/validateMiddleware.js"
-import { createContactBody, createGeneralContactBody } from "../validators/contactValidators.js"
+import { Router } from "express";
+import { create, createGeneral } from "../controllers/contactController.js";
+import { authenticate, requireRole } from "../middleware/authMiddleware.js";
+import { validate } from "../middleware/validateMiddleware.js";
+import {
+  createContactBody,
+  createGeneralContactBody,
+} from "../validators/contactValidators.js";
 
-const router = Router()
+const contactRoute = Router();
 
-// Any logged-in non-admin (tenant or owner) can contact about a listing or property.
-router.post("/",
+// Any logged-in non-admin (tenant or owner) can contact about a listing.
+contactRoute.post(
+  "/",
   authenticate,
   requireRole("tenant", "owner"),
   validate({ body: createContactBody }),
-  create
-)
+  create,
+);
 
-// General "contact us" form — no listing/property target.
-router.post("/general",
+// General "contact us" form — no listing target.
+contactRoute.post(
+  "/general",
   authenticate,
   requireRole("tenant", "owner"),
   validate({ body: createGeneralContactBody }),
-  createGeneral
-)
+  createGeneral,
+);
 
-export default router
+export default contactRoute;

@@ -15,30 +15,30 @@ import { idParam, idAndImageIdParam } from "../validators/common.js"
 
 const ownerOrAdmin = requireRole("owner", "admin")
 
-const router = Router()
+const rentalRoute = Router()
 
 // Public — active rentals only
-router.get("/",      validate({ query: publicListingsQuery }), listPublic)
-router.get("/owned", authenticate, requireOwner, listMy)
-router.get("/:id",   optionalAuthenticate, validate({ params: idParam }), getPublic)
+rentalRoute.get("/",      validate({ query: publicListingsQuery }), listPublic)
+rentalRoute.get("/owned", authenticate, requireOwner, listMy)
+rentalRoute.get("/:id",   optionalAuthenticate, validate({ params: idParam }), getPublic)
 
 // Owner-only writes
-router.post("/",
+rentalRoute.post("/",
   authenticate, requireOwner,
   validate({ body: createListingBody }),
   create
 )
-router.put("/:id",
+rentalRoute.put("/:id",
   authenticate, requireOwner,
   validate({ params: idParam, body: updateListingBody }),
   update
 )
-router.post("/:id/submit",
+rentalRoute.post("/:id/submit",
   authenticate, requireOwner,
   validate({ params: idParam }),
   submit
 )
-router.post("/:id/images",
+rentalRoute.post("/:id/images",
   authenticate, requireOwner,
   validate({ params: idParam }),
   upload.array("images", 15),
@@ -48,15 +48,15 @@ router.post("/:id/images",
 
 // Owner-or-admin destructive endpoints. Status gate (active blocks owners,
 // admins unrestricted) is enforced in the service layer.
-router.delete("/:id/images/:imageId",
+rentalRoute.delete("/:id/images/:imageId",
   authenticate, ownerOrAdmin,
   validate({ params: idAndImageIdParam }),
   removeImage
 )
-router.delete("/:id",
+rentalRoute.delete("/:id",
   authenticate, ownerOrAdmin,
   validate({ params: idParam }),
   remove
 )
 
-export default router
+export default rentalRoute

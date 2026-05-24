@@ -4,21 +4,21 @@ import { authenticate } from "../middleware/authMiddleware.js"
 import { validate } from "../middleware/validateMiddleware.js"
 import { createInterestBody, interestPathParams } from "../validators/interestValidators.js"
 
-const router = Router()
+const interestRoute = Router()
 
 // Any authenticated user (tenant, owner, admin) can manage their own interests.
-router.get("/", authenticate, list)
+interestRoute.get("/", authenticate, list)
 
-router.post("/",
+interestRoute.post("/",
   authenticate,
   validate({ body: createInterestBody }),
   create
 )
 
-router.delete("/:kind/:id",
+interestRoute.delete("/:kind/:id",
   authenticate,
   validate({ params: interestPathParams }),
   remove
 )
 
-export default router
+export default interestRoute

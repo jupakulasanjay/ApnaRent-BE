@@ -4,11 +4,11 @@ import { authenticate } from "../middleware/authMiddleware.js"
 import { validate } from "../middleware/validateMiddleware.js"
 import { registerBody, loginBody } from "../validators/authValidators.js"
 
-const router = Router()
+const authRoute = Router()
 
-router.post("/register",    validate({ body: registerBody }), register)
-router.post("/login",       validate({ body: loginBody }),    login)
-router.get("/current-user", authenticate, me)
-router.post("/logout",      authenticate, logout)
+authRoute.post("/register",    validate({ body: registerBody }), register)
+authRoute.post("/login",       validate({ body: loginBody }),    login)
+authRoute.get("/current-user", authenticate, me)
+authRoute.post("/logout",      authenticate, logout)
 
-export default router
+export default authRoute

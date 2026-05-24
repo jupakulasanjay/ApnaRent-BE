@@ -2,14 +2,10 @@ CREATE TABLE IF NOT EXISTS contacts (
   id           SERIAL PRIMARY KEY,
   user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   listing_id   INTEGER REFERENCES listings(id) ON DELETE CASCADE,
-  property_id  INTEGER REFERENCES properties(id) ON DELETE CASCADE,
   subject      TEXT,
   message      TEXT NOT NULL,
-  created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT contacts_target_not_both
-    CHECK (NOT (listing_id IS NOT NULL AND property_id IS NOT NULL))
+  created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX IF NOT EXISTS idx_contacts_user     ON contacts (user_id);
-CREATE INDEX IF NOT EXISTS idx_contacts_listing  ON contacts (listing_id);
-CREATE INDEX IF NOT EXISTS idx_contacts_property ON contacts (property_id);
+CREATE INDEX IF NOT EXISTS idx_contacts_user    ON contacts (user_id);
+CREATE INDEX IF NOT EXISTS idx_contacts_listing ON contacts (listing_id);

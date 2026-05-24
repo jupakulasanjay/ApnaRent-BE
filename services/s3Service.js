@@ -28,8 +28,6 @@ export async function uploadBuffer(key, buffer, contentType) {
   return `${publicBase}/${key}`
 }
 
-// Returns the S3 key for URLs we issued, or null for legacy /uploads/* rows
-// (pre-S3 local files — those have no S3 object to clean up).
 export function s3KeyFromUrl(url) {
   if (typeof url !== "string") return null
   for (const base of [publicBase, defaultBase]) {
