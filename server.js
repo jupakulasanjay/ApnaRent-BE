@@ -2,13 +2,13 @@ import "dotenv/config";
 import express from "express";
 import cors from "cors";
 
-import authRoutes from "./routes/authRoutes.js";
-import rentalRoutes from "./routes/rentalRoutes.js";
-import adminRoutes from "./routes/adminRoutes.js";
-import searchRoutes from "./routes/searchRoutes.js";
-import contactRoutes from "./routes/contactRoutes.js";
-import interestRoutes from "./routes/interestRoutes.js";
-import amenityRoutes from "./routes/amenityRoutes.js";
+import authRoutes from "./routes/auth/authRoutes.js";
+import rentalRoutes from "./routes/rentals/rentalRoutes.js";
+import adminRoutes from "./routes/admin/adminRoutes.js";
+import searchRoutes from "./routes/search/searchRoutes.js";
+import contactRoutes from "./routes/contacts/contactRoutes.js";
+import interestRoutes from "./routes/interests/interestRoutes.js";
+import amenityRoutes from "./routes/amenities/amenityRoutes.js";
 import { notFound, errorHandler } from "./middleware/errorMiddleware.js";
 
 const app = express();

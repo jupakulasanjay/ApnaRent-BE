@@ -9,15 +9,13 @@ export function errorHandler(err, req, res, next) {
   let status = err.status || 500;
   let message = err.message || "Internal server error";
 
-  // pg error codes → friendly status
   if (err.code) {
     if (err.code === "23505") {
       status = 409;
       message = "Duplicate value violates unique constraint";
     } else if (err.code === "23503") {
       status = 400;
-      // err.constraint is like "contacts_listing_id_fkey" or "contacts_user_id_fkey"
-      // Extract the entity and include it in the message.
+      // err.constraint is like "contacts_listing_id_fkey"; pull out the entity name.
       const m = /^[a-z_]+_([a-z_]+)_id_fkey$/.exec(err.constraint || "");
       const entity = m ? m[1].replace(/_/g, " ") : "record";
       message = `Referenced ${entity} does not exist`;

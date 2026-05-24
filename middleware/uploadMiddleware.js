@@ -1,10 +1,11 @@
 import multer from "multer";
 import sharp from "sharp";
 import crypto from "crypto";
-import { uploadBuffer } from "../services/s3Service.js";
+import { uploadBuffer } from "../services/_shared/s3Service.js";
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 const MAX_FILES = 15;
+const WEBP_QUALITY = 82;
 
 const storage = multer.memoryStorage();
 
@@ -23,8 +24,9 @@ export const upload = multer({
   },
 });
 
-// Factory: processImages("listing-images").
-// Converts each uploaded file to WebP and uploads to S3 under <subdir>/.
+// Factory: processImages("listing-images"). Converts each uploaded file to
+// WebP and uploads to S3 under <subdir>/. Sets req.imagePaths to the URLs so
+// the next handler can persist them.
 export function processImages(subdir) {
   return async (req, res, next) => {
     try {
@@ -35,7 +37,7 @@ export function processImages(subdir) {
         req.files.map(async (file) => {
           const webp = await sharp(file.buffer)
             .rotate()
-            .webp({ quality: 82 })
+            .webp({ quality: WEBP_QUALITY })
             .toBuffer();
           const key = `${subdir}/${Date.now()}-${crypto.randomBytes(6).toString("hex")}.webp`;
           return uploadBuffer(key, webp, "image/webp");
