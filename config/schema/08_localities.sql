@@ -19,7 +19,3 @@ CREATE UNIQUE INDEX IF NOT EXISTS uniq_localities_city_locality
 CREATE INDEX IF NOT EXISTS idx_listings_earth
   ON listings USING GIST (ll_to_earth(latitude::float8, longitude::float8))
   WHERE latitude IS NOT NULL AND longitude IS NOT NULL;
-
-CREATE INDEX IF NOT EXISTS idx_properties_earth
-  ON properties USING GIST (ll_to_earth(latitude::float8, longitude::float8))
-  WHERE latitude IS NOT NULL AND longitude IS NOT NULL;

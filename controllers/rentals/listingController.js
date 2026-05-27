@@ -52,8 +52,13 @@ export async function uploadImages(req, res, next) {
 
 export async function listMy(req, res, next) {
   try {
-    const rows = await listingService.listMyListings(req.user.id);
-    res.json({ count: rows.length, data: rows });
+    const { status, limit, offset } = req.query;
+    const result = await listingService.listMyListings(req.user.id, {
+      status,
+      limit,
+      offset,
+    });
+    res.json(result);
   } catch (err) {
     next(err);
   }

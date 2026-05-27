@@ -96,14 +96,83 @@ export async function setListingStatus(
   return rows[0] || null;
 }
 
-export async function listListingsByOwner(ownerId) {
+// Owner's own rentals, optionally filtered by status and paginated. A stable
+// (created_at DESC, id DESC) sort keeps pages non-overlapping. `limit` omitted
+// → no LIMIT clause (all matching rows).
+export async function listListingsByOwner({
+  ownerId,
+  status,
+  limit,
+  offset = 0,
+}) {
+  const params = [ownerId];
+  let where = `owner_id = $1`;
+  if (status) {
+    params.push(status);
+    where += ` AND status = $${params.length}`;
+  }
+
+  let sql = `SELECT ${LISTING_COLS} FROM listings
+     WHERE ${where}
+     ORDER BY created_at DESC, id DESC`;
+
+  if (limit != null) {
+    params.push(limit);
+    sql += ` LIMIT $${params.length}`;
+  }
+  params.push(offset);
+  sql += ` OFFSET $${params.length}`;
+
+  const { rows } = await pool.query(sql, params);
+  return rows;
+}
+
+// Total rows for the owner, honoring the (optional) status filter — drives the
+// pager, so it ignores limit/offset.
+export async function countListingsByOwner({ ownerId, status }) {
+  const params = [ownerId];
+  let where = `owner_id = $1`;
+  if (status) {
+    params.push(status);
+    where += ` AND status = $${params.length}`;
+  }
   const { rows } = await pool.query(
-    `SELECT ${LISTING_COLS} FROM listings
-     WHERE owner_id = $1
-     ORDER BY created_at DESC`,
+    `SELECT COUNT(*)::int AS total FROM listings WHERE ${where}`,
+    params,
+  );
+  return rows[0].total;
+}
+
+// Per-status breakdown across ALL the owner's rentals (no status filter, no
+// pagination) in one grouped query. `all` is the sum of the four dashboard
+// statuses; 'expired' rows, if any, are deliberately excluded from the buckets
+// and from `all`.
+export async function getOwnerStatusCounts(ownerId) {
+  const { rows } = await pool.query(
+    `SELECT status, COUNT(*)::int AS count
+       FROM listings
+      WHERE owner_id = $1
+      GROUP BY status`,
     [ownerId],
   );
-  return rows;
+
+  const counts = {
+    [LISTING_STATUS.DRAFT]: 0,
+    [LISTING_STATUS.PENDING]: 0,
+    [LISTING_STATUS.ACTIVE]: 0,
+    [LISTING_STATUS.REJECTED]: 0,
+  };
+  for (const r of rows) {
+    if (r.status in counts) counts[r.status] = r.count;
+  }
+
+  const all =
+    counts[LISTING_STATUS.DRAFT] +
+    counts[LISTING_STATUS.PENDING] +
+    counts[LISTING_STATUS.ACTIVE] +
+    counts[LISTING_STATUS.REJECTED];
+
+  return { all, ...counts };
 }
 
 export async function listListingsByStatus({

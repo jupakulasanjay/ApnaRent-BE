@@ -4,6 +4,8 @@ import {
   updateListing,
   setListingStatus,
   listListingsByOwner,
+  countListingsByOwner,
+  getOwnerStatusCounts,
   listPublicListings,
   countPublicListings,
   deleteListing,
@@ -72,12 +74,23 @@ export async function addImagesToListing(ownerId, listingId, imageUrls) {
   return addListingImages(listingId, imageUrls);
 }
 
-export async function listMyListings(ownerId) {
-  const rows = await listListingsByOwner(ownerId);
+// The caller's own rentals. `count` reflects the status filter (drives the
+// pager); `statusCounts` is the full per-status breakdown ignoring filter +
+// pagination (drives tab badges / empty states). The three queries are
+// independent, so run them concurrently.
+export async function listMyListings(ownerId, { status, limit, offset } = {}) {
+  const [rows, count, statusCounts] = await Promise.all([
+    listListingsByOwner({ ownerId, status, limit, offset }),
+    countListingsByOwner({ ownerId, status }),
+    getOwnerStatusCounts(ownerId),
+  ]);
+
   const withImages = await Promise.all(
     rows.map(async (l) => ({ ...l, images: await listListingImages(l.id) })),
   );
-  return decoratePostedByMany(withImages);
+  const data = await decoratePostedByMany(withImages);
+
+  return { data, count, statusCounts };
 }
 
 // When a locality is supplied, resolve to a centroid via the Google-backed

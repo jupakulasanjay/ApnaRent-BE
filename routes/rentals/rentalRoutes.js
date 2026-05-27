@@ -22,6 +22,7 @@ import {
   createListingBody,
   updateListingBody,
   publicListingsQuery,
+  ownedListingsQuery,
 } from "../../validators/rentals/listingValidators.js";
 import { idParam, idAndImageIdParam } from "../../validators/_shared/common.js";
 import { USER_ROLE } from "../../utils/constants.js";
@@ -34,7 +35,13 @@ const ownerOrAdmin = requireRole(USER_ROLE.OWNER, USER_ROLE.ADMIN);
 const rentalRoute = Router();
 
 rentalRoute.get("/", validate({ query: publicListingsQuery }), listPublic);
-rentalRoute.get("/owned", authenticate, requireOwner, listMy);
+rentalRoute.get(
+  "/owned",
+  authenticate,
+  ownerOrAdmin,
+  validate({ query: ownedListingsQuery }),
+  listMy,
+);
 rentalRoute.get(
   "/:id",
   optionalAuthenticate,
