@@ -8,6 +8,7 @@ import {
   BANGALORE_LOCALITIES,
   canonicalizeLocality,
 } from "./_bangaloreLocalities.js";
+import { buildSummary } from "./_summary.js";
 
 const DEFAULT_RADIUS_KM = SEARCH_RADIUS_KM;
 const STRICT_RESULT_LIMIT = 50;
@@ -181,11 +182,29 @@ export async function naturalLanguageSearch(query) {
   });
 
   if (strictRows.length > 0) {
+    const results = await hydrateListings(strictRows);
+    // Strict pass uses centroid+radius, so rows can be from neighbouring
+    // localities. Tell the summary builder to say "near" instead of "in"
+    // when the returned listings aren't literally in the filter locality.
+    const filterLocLower = filters.locality?.trim().toLowerCase() ?? null;
+    const nearby =
+      !!filterLocLower &&
+      !results.every(
+        (r) => (r.locality || "").trim().toLowerCase() === filterLocLower,
+      );
+    const summary = await buildSummary({
+      user_query: query,
+      filters,
+      results_count: results.length,
+      suggestions_count: 0,
+      nearby,
+    });
     return {
       filters,
-      results: await hydrateListings(strictRows),
+      results,
       suggestions: [],
       suggestion_reason: null,
+      summary,
     };
   }
 
@@ -217,10 +236,18 @@ export async function naturalLanguageSearch(query) {
     appendUniqueById(collected, r2, seen, SUGGESTION_CAP);
   }
 
+  const suggestions = collected.length ? await hydrateListings(collected) : [];
+  const summary = await buildSummary({
+    user_query: query,
+    filters,
+    results_count: 0,
+    suggestions_count: suggestions.length,
+  });
   return {
     filters,
     results: [],
-    suggestions: collected.length ? await hydrateListings(collected) : [],
+    suggestions,
     suggestion_reason: collected.length ? "no-exact-matches" : null,
+    summary,
   };
 }
