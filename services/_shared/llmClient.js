@@ -13,11 +13,15 @@ const INFERENCE_PARAMS = {
 // this verbatim — no divergent prompts.
 function buildSummaryPrompt({
   user_query,
-  locality,
+  localities,
   results_count,
   suggestions_count,
   nearby,
 }) {
+  const localitiesStr =
+    Array.isArray(localities) && localities.length > 0
+      ? localities.join(", ")
+      : "";
   return `You are a copywriter for OGHomes, a rental marketplace in Bangalore, India. Write ONE short, friendly sentence (max 18 words) describing the search result set below. The sentence appears directly under the search bar on the listings page.
 
 Output rules:
@@ -25,21 +29,22 @@ Output rules:
 - Use sentence case and correct English grammar.
 - Use correct singular/plural: "1 rental" / "2 rentals". Never write "1 rentals" or "rental(s)".
 - Title-case locality names ("indiranagar" -> "Indiranagar", "hsr layout" -> "HSR Layout").
-- Mention the locality only if it is non-empty below. Do NOT mention the city, Bangalore, or India.
+- Mention the localities only if the list is non-empty below. Do NOT mention the city, Bangalore, or India.
+- When multiple localities are listed, join naturally: 2 → "X and Y", 3+ → "X, Y, and Z". Do NOT list more than 4; if the list has 5+ say "X, Y, and N other areas".
 - Do NOT invent details (price, BHK, amenities, furnishing) unless they appear verbatim in user_query.
 - Do NOT add emojis.
 
 Tone guidance:
-- If results_count > 0 and nearby is false: results are literally in the given locality — say "in {Locality}". Keep it warm and direct.
-- If results_count > 0 and nearby is true: results are from nearby localities, NOT the one the user asked for — say "near {Locality}" (or equivalent like "around"). Do NOT say "in {Locality}" — that would mislead the user.
-- If results_count == 0 and suggestions_count > 0: acknowledge no exact match in the given locality and gently mention we're showing similar nearby options.
+- If results_count > 0 and nearby is false: results are literally in the listed locality/localities — say "in {Localities}". Keep it warm and direct.
+- If results_count > 0 and nearby is true: results are from nearby localities, not the exact ones the user asked for — say "near {Localities}" (or "around"). Do NOT say "in {Localities}" — that would mislead the user.
+- If results_count == 0 and suggestions_count > 0: acknowledge no exact match in the listed localities and gently mention we're showing similar nearby options.
 - If results_count == 0 and suggestions_count == 0: acknowledge nothing matched and suggest widening filters. You may address the user as "you" only in this case.
 
 Vary the phrasing — don't reuse the same wording every time. Be natural, not robotic.
 
 Inputs:
 - user_query: ${user_query}
-- locality: ${locality}
+- localities: ${localitiesStr}
 - results_count: ${results_count}
 - suggestions_count: ${suggestions_count}
 - nearby: ${nearby}

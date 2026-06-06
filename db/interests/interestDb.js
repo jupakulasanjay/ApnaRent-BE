@@ -21,6 +21,14 @@ export async function findInterestForUserListing(userId, listingId) {
   return rows[0] || null;
 }
 
+export async function countInterestsByUser(userId) {
+  const { rows } = await pool.query(
+    `SELECT COUNT(*)::int AS total FROM interests WHERE user_id = $1`,
+    [userId],
+  );
+  return rows[0].total;
+}
+
 export async function listInterestsByUser(userId) {
   const { rows } = await pool.query(
     `SELECT ${INTEREST_COLS} FROM interests

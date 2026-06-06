@@ -1,16 +1,25 @@
 import {
   getCatalogueForKind,
-  SUPPORTED_KINDS,
-} from "../../config/amenities.js";
+  getAllAmenities,
+  getSupportedKinds,
+} from "../../db/amenities/amenityDb.js";
 
-export function get(req, res, next) {
+export async function get(req, res, next) {
   try {
-    const catalogue = getCatalogueForKind(req.query.kind);
+    const { kind } = req.query;
+
+    if (!kind) {
+      const all = await getAllAmenities();
+      return res.json(all);
+    }
+
+    const catalogue = await getCatalogueForKind(kind);
     if (!catalogue) {
+      const supported = await getSupportedKinds();
       return next({
         status: 400,
-        message: `Unknown kind '${req.query.kind}'`,
-        details: { supported: SUPPORTED_KINDS },
+        message: `Unknown kind '${kind}'`,
+        details: { supported },
       });
     }
     res.json(catalogue);

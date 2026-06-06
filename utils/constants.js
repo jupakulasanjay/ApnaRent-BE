@@ -21,6 +21,8 @@ export const INTEREST_KIND = Object.freeze({
   LISTING: "listing",
 });
 
+export const INTEREST_LIMIT_PER_USER = 50;
+
 export const APNARENT_TAG = "ApnaRent";
 
 export const AUTH = Object.freeze({

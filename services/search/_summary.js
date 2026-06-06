@@ -11,27 +11,33 @@ const counters = { ai_summary_fallback_total: 0 };
 export function fallbackSummary(
   results_count,
   suggestions_count,
-  locality,
+  localities,
   { nearby = false } = {},
 ) {
-  const trimmed = locality && locality.trim();
-  const localityName = trimmed ? titleCase(trimmed) : "";
+  const names = (Array.isArray(localities) ? localities : [])
+    .map((l) => (l && l.trim() ? titleCase(l.trim()) : null))
+    .filter(Boolean);
+  const place = names.length > 0 ? ` ${joinNames(names)}` : "";
 
   if (results_count > 0) {
     const noun = results_count === 1 ? "rental" : "rentals";
-    const place = localityName
-      ? ` ${nearby ? "near" : "in"} ${localityName}`
-      : "";
-    return `Found ${results_count} ${noun}${place}.`;
+    const prep = place ? ` ${nearby ? "near" : "in"}${place}` : "";
+    return `Found ${results_count} ${noun}${prep}.`;
   }
   if (suggestions_count > 0) {
-    return localityName
-      ? `No exact matches in ${localityName} — showing similar rentals nearby.`
+    return place
+      ? `No exact matches in${place} — showing similar rentals nearby.`
       : "No exact matches — showing similar rentals you might like.";
   }
-  return localityName
-    ? `No rentals found in ${localityName}. Try widening the filters.`
+  return place
+    ? `No rentals found in${place}. Try widening the filters.`
     : "No rentals match your search. Try widening the filters.";
+}
+
+function joinNames(names) {
+  if (names.length === 1) return names[0];
+  if (names.length === 2) return `${names[0]} and ${names[1]}`;
+  return `${names.slice(0, -1).join(", ")}, and ${names[names.length - 1]}`;
 }
 
 function titleCase(s) {
@@ -55,13 +61,16 @@ export function validateSummary(text) {
 
 function cacheKey(
   provider,
-  locality,
+  localities,
   results_count,
   suggestions_count,
   nearby,
 ) {
-  const loc = (locality || "").trim().toLowerCase();
-  return `${provider}|${loc}|${results_count}|${suggestions_count}|${nearby ? 1 : 0}`;
+  const locs = (localities || [])
+    .map((l) => (l || "").trim().toLowerCase())
+    .sort()
+    .join(",");
+  return `${provider}|${locs}|${results_count}|${suggestions_count}|${nearby ? 1 : 0}`;
 }
 
 function cacheGet(key) {
@@ -98,13 +107,16 @@ export async function buildSummary({
   suggestions_count,
   nearby = false,
 }) {
-  const locality =
-    filters?.locality && filters.locality.trim() ? filters.locality.trim() : "";
+  const localities = Array.isArray(filters?.localities)
+    ? filters.localities
+        .map((l) => (l && l.trim() ? l.trim() : null))
+        .filter(Boolean)
+    : [];
   const client = getLLMClient();
   const provider = client.provider;
   const key = cacheKey(
     provider,
-    locality,
+    localities,
     results_count,
     suggestions_count,
     nearby,
@@ -127,7 +139,7 @@ export async function buildSummary({
       await withTimeout(
         client.generateSummary({
           user_query: user_query ?? "",
-          locality,
+          localities,
           results_count,
           suggestions_count,
           nearby,
@@ -174,7 +186,7 @@ export async function buildSummary({
     });
   }
 
-  const fb = fallbackSummary(results_count, suggestions_count, locality, {
+  const fb = fallbackSummary(results_count, suggestions_count, localities, {
     nearby,
   });
   cacheSet(key, fb);

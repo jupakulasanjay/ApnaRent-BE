@@ -7,7 +7,8 @@
     "start": "node server.js",
     "db:init": "node config/initDb.js",
     "db:reset": "node config/initDb.js --reset",
-    "db:migrate": "node config/runMigrations.js"
+    "db:migrate": "node config/runMigrations.js",
+    "db:seed-amenities": "node config/seedAmenities.js"
   },
   "keywords": [],
   "author": "",

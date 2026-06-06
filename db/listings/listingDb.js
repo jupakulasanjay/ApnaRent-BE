@@ -198,7 +198,9 @@ function buildPublicListingsWhere({
   city,
   locality,
   bhk,
+  minRent,
   maxRent,
+  amenities,
   centroid,
   radiusKm,
 }) {
@@ -214,9 +216,19 @@ function buildPublicListingsWhere({
     where.push(`bhk = $${i++}`);
     params.push(bhk);
   }
+  if (minRent != null) {
+    where.push(`rent >= $${i++}`);
+    params.push(minRent);
+  }
   if (maxRent != null) {
     where.push(`rent <= $${i++}`);
     params.push(maxRent);
+  }
+  // ALL-of semantics for the explicit filter dropdown: a listing must include
+  // every picked amenity. NL search uses ANY-of via a separate code path.
+  if (Array.isArray(amenities) && amenities.length > 0) {
+    where.push(`amenities @> $${i++}::text[]`);
+    params.push(amenities);
   }
 
   let distanceExpr = null;
@@ -248,7 +260,9 @@ export async function listPublicListings({
   city,
   locality,
   bhk,
+  minRent,
   maxRent,
+  amenities,
   centroid,
   radiusKm,
   limit = DEFAULT_PAGE_LIMIT,
@@ -258,7 +272,9 @@ export async function listPublicListings({
     city,
     locality,
     bhk,
+    minRent,
     maxRent,
+    amenities,
     centroid,
     radiusKm,
   });
@@ -279,7 +295,9 @@ export async function countPublicListings({
   city,
   locality,
   bhk,
+  minRent,
   maxRent,
+  amenities,
   centroid,
   radiusKm,
 }) {
@@ -287,7 +305,9 @@ export async function countPublicListings({
     city,
     locality,
     bhk,
+    minRent,
     maxRent,
+    amenities,
     centroid,
     radiusKm,
   });
@@ -298,16 +318,23 @@ export async function countPublicListings({
   return rows[0].total;
 }
 
-// NL-search variant. With a centroid, matches rows within radiusKm OR rows
-// with NULL coords matching the literal locality (ungeocoded older entries).
+// NL-search variant. Accepts multiple localities + a parallel `centroids`
+// array; a listing matches if it's within radius of ANY resolved centroid,
+// literally matches ANY locality with no resolved centroid, OR is a null-coord
+// row literally matching ANY of the localities. Ranking distance is LEAST of
+// the per-centroid distances.
+//
 // BHK is a soft ranking signal, not a hard WHERE — a user asking "2bhk in
 // Neelasandra" still wants to see the only listing there even if it's a 1BHK.
 export async function searchPublicListings({
   city,
-  locality,
+  localities,
   bhk,
+  minRent,
   maxRent,
-  centroid,
+  amenities,
+  amenitiesMode = "any",
+  centroids,
   radiusKm,
   limit = DEFAULT_SEARCH_LIMIT,
   offset = 0,
@@ -328,40 +355,97 @@ export async function searchPublicListings({
                            WHEN bhk IS NOT NULL AND abs(bhk - ${bhkParam}) = 1 THEN 0.5
                            ELSE 0.0 END)`;
   }
+  if (minRent != null) {
+    where.push(`rent >= $${i++}`);
+    params.push(minRent);
+  }
   if (maxRent != null) {
     where.push(`rent <= $${i++}`);
     params.push(maxRent);
   }
+  // `any` = array overlap (&&), `all` = array contains (@>). NL search passes
+  // `any` so "gym OR pool" is reasonable recall; the manual filter passes
+  // `all` so each picked chip is a hard constraint.
+  if (Array.isArray(amenities) && amenities.length > 0) {
+    const op = amenitiesMode === "all" ? "@>" : "&&";
+    where.push(`amenities ${op} $${i++}::text[]`);
+    params.push(amenities);
+  }
 
   let distanceExpr = null;
-  if (centroid && radiusKm) {
-    // earth_box() lets the GiST index prune; earth_distance() is exact.
-    const cLat = `$${i++}`;
-    params.push(centroid.latitude);
-    const cLng = `$${i++}`;
-    params.push(centroid.longitude);
-    const radM = `$${i++}`;
-    params.push(radiusKm * KM_TO_METERS);
-    const litLoc = locality ? `$${i++}` : null;
-    if (litLoc) params.push(`%${locality}%`);
+  const locs = Array.isArray(localities) ? localities.filter(Boolean) : [];
+  const cents = Array.isArray(centroids) ? centroids : [];
+  if (locs.length > 0) {
+    const resolved = locs
+      .map((loc, idx) => ({ loc, c: cents[idx] || null }))
+      .filter((x) => x.c);
+    const unresolved = locs.filter((_, idx) => !cents[idx]);
 
-    const radiusClause = `
-      latitude IS NOT NULL AND longitude IS NOT NULL
-      AND earth_box(ll_to_earth(${cLat}::float8, ${cLng}::float8), ${radM}) @>
-          ll_to_earth(latitude::float8, longitude::float8)
-      AND earth_distance(ll_to_earth(${cLat}::float8, ${cLng}::float8),
-                         ll_to_earth(latitude::float8, longitude::float8)) <= ${radM}
-    `;
-    const nullCoordFallback = litLoc
-      ? `(latitude IS NULL AND locality ILIKE ${litLoc})`
-      : `false`;
+    let radMParam = null;
+    if (resolved.length > 0 && radiusKm) {
+      radMParam = `$${i++}`;
+      params.push(radiusKm * KM_TO_METERS);
+    }
 
-    where.push(`((${radiusClause}) OR ${nullCoordFallback})`);
-    distanceExpr = `earth_distance(ll_to_earth(${cLat}::float8, ${cLng}::float8),
-                                   ll_to_earth(latitude::float8, longitude::float8))`;
-  } else if (locality) {
-    where.push(`locality ILIKE $${i++}`);
-    params.push(`%${locality}%`);
+    const radiusOrParts = [];
+    const distanceParts = [];
+    for (const { c } of resolved) {
+      if (!radMParam) break;
+      const cLat = `$${i++}`;
+      params.push(c.latitude);
+      const cLng = `$${i++}`;
+      params.push(c.longitude);
+      radiusOrParts.push(
+        `(earth_box(ll_to_earth(${cLat}::float8, ${cLng}::float8), ${radMParam}) @>
+            ll_to_earth(latitude::float8, longitude::float8)
+          AND earth_distance(ll_to_earth(${cLat}::float8, ${cLng}::float8),
+                             ll_to_earth(latitude::float8, longitude::float8)) <= ${radMParam})`,
+      );
+      distanceParts.push(
+        `earth_distance(ll_to_earth(${cLat}::float8, ${cLng}::float8),
+                        ll_to_earth(latitude::float8, longitude::float8))`,
+      );
+    }
+
+    // Literal ILIKE patterns: for null-coord fallback across ALL localities
+    // and for the no-centroid case for unresolved ones. We re-use one set of
+    // params for both branches to keep the query compact.
+    const litParams = locs.map(() => `$${i++}`);
+    for (const l of locs) params.push(`%${l}%`);
+    const anyLiteralMatch = `(${litParams
+      .map((p) => `locality ILIKE ${p}`)
+      .join(" OR ")})`;
+
+    const branches = [];
+    if (radiusOrParts.length > 0) {
+      branches.push(
+        `(latitude IS NOT NULL AND longitude IS NOT NULL AND (${radiusOrParts.join(" OR ")}))`,
+      );
+      // Null-coord rows that match any literal locality (legacy ungeocoded
+      // entries).
+      branches.push(`(latitude IS NULL AND ${anyLiteralMatch})`);
+      // For unresolved localities, fall back to literal-only with no spatial
+      // bound (any row matching them, regardless of coords).
+      if (unresolved.length > 0) {
+        const unresolvedParams = unresolved.map(() => `$${i++}`);
+        for (const l of unresolved) params.push(`%${l}%`);
+        branches.push(
+          `(${unresolvedParams.map((p) => `locality ILIKE ${p}`).join(" OR ")})`,
+        );
+      }
+    } else {
+      // No centroids at all — every locality fall back to literal ILIKE.
+      branches.push(anyLiteralMatch);
+    }
+
+    where.push(`(${branches.join(" OR ")})`);
+
+    if (distanceParts.length > 0) {
+      distanceExpr =
+        distanceParts.length === 1
+          ? distanceParts[0]
+          : `LEAST(${distanceParts.join(", ")})`;
+    }
   }
 
   params.push(limit, offset);

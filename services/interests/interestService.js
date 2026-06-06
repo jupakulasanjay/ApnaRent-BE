@@ -1,6 +1,7 @@
 import {
   createInterest,
   findInterestForUserListing,
+  countInterestsByUser,
   listInterestsByUser,
   deleteInterestForUserListing,
 } from "../../db/interests/interestDb.js";
@@ -9,6 +10,7 @@ import { listListingImages } from "../../db/listings/listingImageDb.js";
 import { httpError } from "../../utils/httpError.js";
 import {
   INTEREST_KIND,
+  INTEREST_LIMIT_PER_USER,
   LISTING_STATUS,
   USER_ROLE,
 } from "../../utils/constants.js";
@@ -60,6 +62,17 @@ export async function saveInterest(requester, { listingId }) {
       created: false,
     };
   }
+
+  // Cap re-checked here (not in the validator) so existing-interest re-saves
+  // stay idempotent even when the user is already at the limit.
+  const count = await countInterestsByUser(requester.id);
+  if (count >= INTEREST_LIMIT_PER_USER) {
+    throw httpError(
+      400,
+      `Interest limit reached (${INTEREST_LIMIT_PER_USER}). Remove an existing interest before saving a new one.`,
+    );
+  }
+
   const row = await createInterest({ userId: requester.id, listingId });
   return { interest: shapeListingInterest(row, listing), created: true };
 }
