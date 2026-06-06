@@ -3,14 +3,20 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "nodemon server.js"
+    "dev": "nodemon server.js",
+    "start": "node server.js",
+    "db:init": "node config/initDb.js",
+    "db:reset": "node config/initDb.js --reset",
+    "db:migrate": "node config/runMigrations.js",
+    "db:seed-amenities": "node config/seedAmenities.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.32.1",
+    "@aws-sdk/client-s3": "^3.1047.0",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
@@ -18,7 +24,8 @@
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.1.1",
     "pg": "^8.20.0",
-    "sharp": "^0.34.5"
+    "sharp": "^0.34.5",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "nodemon": "^3.1.14"
