@@ -8,30 +8,58 @@ const FORBIDDEN_CHARS = ['"', "`", "*", "_", "#"];
 const cache = new Map();
 const counters = { ai_summary_fallback_total: 0 };
 
+// Per-domain copy. `domain` threads through from the rentals vs. properties
+// search services so the noun and prompt match the result set. For properties,
+// the noun is further specialised by property_type so the summary reads
+// "residential homes" / "plots" / "commercial spaces". Rentals is the default
+// to preserve the original behavior.
+const PROPERTY_TYPE_NOUNS = {
+  residential: { singular: "home", plural: "homes" },
+  plot: { singular: "plot", plural: "plots" },
+  commercial: { singular: "commercial space", plural: "commercial spaces" },
+};
+const DEFAULT_PROPERTY_NOUNS = { singular: "property", plural: "properties" };
+const RENTAL_NOUNS = { singular: "rental", plural: "rentals" };
+
+// `propertyTypes` is the resolved array from property search (multi-select).
+// One type → its own noun; several → joined plurals ("homes and plots"); none
+// → generic "property/properties". Rentals ignores it.
+function nounsFor(domain, propertyTypes) {
+  if (domain !== "properties") return RENTAL_NOUNS;
+  const types = (Array.isArray(propertyTypes) ? propertyTypes : []).filter(
+    (t) => PROPERTY_TYPE_NOUNS[t],
+  );
+  if (types.length === 0) return DEFAULT_PROPERTY_NOUNS;
+  if (types.length === 1) return PROPERTY_TYPE_NOUNS[types[0]];
+  const phrase = joinNames(types.map((t) => PROPERTY_TYPE_NOUNS[t].plural));
+  return { singular: phrase, plural: phrase };
+}
+
 export function fallbackSummary(
   results_count,
   suggestions_count,
   localities,
-  { nearby = false } = {},
+  { nearby = false, domain = "rentals", propertyTypes = null } = {},
 ) {
+  const { singular, plural } = nounsFor(domain, propertyTypes);
   const names = (Array.isArray(localities) ? localities : [])
     .map((l) => (l && l.trim() ? titleCase(l.trim()) : null))
     .filter(Boolean);
   const place = names.length > 0 ? ` ${joinNames(names)}` : "";
 
   if (results_count > 0) {
-    const noun = results_count === 1 ? "rental" : "rentals";
+    const noun = results_count === 1 ? singular : plural;
     const prep = place ? ` ${nearby ? "near" : "in"}${place}` : "";
     return `Found ${results_count} ${noun}${prep}.`;
   }
   if (suggestions_count > 0) {
     return place
-      ? `No exact matches in${place} — showing similar rentals nearby.`
-      : "No exact matches — showing similar rentals you might like.";
+      ? `No exact matches in${place} — showing similar ${plural} nearby.`
+      : `No exact matches — showing similar ${plural} you might like.`;
   }
   return place
-    ? `No rentals found in${place}. Try widening the filters.`
-    : "No rentals match your search. Try widening the filters.";
+    ? `No ${plural} found in${place}. Try widening the filters.`
+    : `No ${plural} match your search. Try widening the filters.`;
 }
 
 function joinNames(names) {
@@ -61,6 +89,8 @@ export function validateSummary(text) {
 
 function cacheKey(
   provider,
+  domain,
+  propertyTypes,
   localities,
   results_count,
   suggestions_count,
@@ -70,7 +100,11 @@ function cacheKey(
     .map((l) => (l || "").trim().toLowerCase())
     .sort()
     .join(",");
-  return `${provider}|${locs}|${results_count}|${suggestions_count}|${nearby ? 1 : 0}`;
+  const types = (Array.isArray(propertyTypes) ? propertyTypes : [])
+    .slice()
+    .sort()
+    .join(",");
+  return `${provider}|${domain}|${types}|${locs}|${results_count}|${suggestions_count}|${nearby ? 1 : 0}`;
 }
 
 function cacheGet(key) {
@@ -106,6 +140,8 @@ export async function buildSummary({
   results_count,
   suggestions_count,
   nearby = false,
+  domain = "rentals",
+  propertyTypes = null,
 }) {
   const localities = Array.isArray(filters?.localities)
     ? filters.localities
@@ -116,6 +152,8 @@ export async function buildSummary({
   const provider = client.provider;
   const key = cacheKey(
     provider,
+    domain,
+    propertyTypes,
     localities,
     results_count,
     suggestions_count,
@@ -143,6 +181,7 @@ export async function buildSummary({
           results_count,
           suggestions_count,
           nearby,
+          nouns: nounsFor(domain, propertyTypes),
         }),
         AI_TIMEOUT_MS,
       );
@@ -188,6 +227,8 @@ export async function buildSummary({
 
   const fb = fallbackSummary(results_count, suggestions_count, localities, {
     nearby,
+    propertyTypes,
+    domain,
   });
   cacheSet(key, fb);
   return fb;

@@ -17,17 +17,19 @@ function buildSummaryPrompt({
   results_count,
   suggestions_count,
   nearby,
+  nouns = { singular: "rental", plural: "rentals" },
 }) {
   const localitiesStr =
     Array.isArray(localities) && localities.length > 0
       ? localities.join(", ")
       : "";
-  return `You are a copywriter for OGHomes, a rental marketplace in Bangalore, India. Write ONE short, friendly sentence (max 18 words) describing the search result set below. The sentence appears directly under the search bar on the listings page.
+  const { singular, plural } = nouns;
+  return `You are a copywriter for OGHomes, a real-estate marketplace in Bangalore, India. Write ONE short, friendly sentence (max 18 words) describing the search result set below. The sentence appears directly under the search bar on the listings page.
 
 Output rules:
 - Output ONLY the sentence. No quotes, no markdown, no preamble, no labels, no trailing newline. Do NOT ask for clarification.
 - Use sentence case and correct English grammar.
-- Use correct singular/plural: "1 rental" / "2 rentals". Never write "1 rentals" or "rental(s)".
+- Use correct singular/plural: "1 ${singular}" / "2 ${plural}". Never write "1 ${plural}" or "${singular}(s)".
 - Title-case locality names ("indiranagar" -> "Indiranagar", "hsr layout" -> "HSR Layout").
 - Mention the localities only if the list is non-empty below. Do NOT mention the city, Bangalore, or India.
 - When multiple localities are listed, join naturally: 2 → "X and Y", 3+ → "X, Y, and Z". Do NOT list more than 4; if the list has 5+ say "X, Y, and N other areas".

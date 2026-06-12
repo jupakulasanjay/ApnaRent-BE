@@ -14,6 +14,7 @@ export const USER_ROLE = Object.freeze({
 
 export const CONTACT_KIND = Object.freeze({
   LISTING: "listing",
+  PROPERTY: "property",
   GENERAL: "general",
 });
 

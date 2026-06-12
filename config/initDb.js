@@ -27,6 +27,7 @@ async function resetTables() {
     `DROP TABLE IF EXISTS
        contacts,
        listing_images, listings,
+       property_images, properties,
        unit_images, units, buildings,
        interests, admins, users,
        localities,

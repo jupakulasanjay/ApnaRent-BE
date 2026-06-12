@@ -4,6 +4,7 @@ import cors from "cors";
 
 import authRoutes from "./routes/auth/authRoutes.js";
 import rentalRoutes from "./routes/rentals/rentalRoutes.js";
+import propertyRoutes from "./routes/properties/propertyRoutes.js";
 import adminRoutes from "./routes/admin/adminRoutes.js";
 import searchRoutes from "./routes/search/searchRoutes.js";
 import contactRoutes from "./routes/contacts/contactRoutes.js";
@@ -22,6 +23,7 @@ app.get("/", (req, res) => {
 
 app.use("/api/auth", authRoutes);
 app.use("/api/rentals", rentalRoutes);
+app.use("/api/properties", propertyRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/search", searchRoutes);
 app.use("/api/contact", contactRoutes);
