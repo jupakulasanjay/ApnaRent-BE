@@ -59,6 +59,16 @@ const LOCALITIES = [
 ];
 
 const FURNISHING = ["unfurnished", "semi_furnished", "furnished"];
+const FACINGS = [
+  "north",
+  "south",
+  "east",
+  "west",
+  "north_east",
+  "north_west",
+  "south_east",
+  "south_west",
+];
 
 const AMENITIES = {
   residential: [
@@ -159,6 +169,8 @@ function buildOne(type) {
 
   const base = {
     property_type: type,
+    property_facing: pick(FACINGS),
+    area: null,
     status,
     locality: loc.locality,
     city: "Bangalore",
@@ -179,22 +191,24 @@ function buildOne(type) {
     base.bathrooms = Math.max(1, bedrooms - randInt(0, 1));
     base.furnishing = pick(FURNISHING);
     base.available_from = futureDate();
+    base.area = randInt(600, 3500);
     base.price = roundTo(randInt(5_000_000, 55_000_000), 100_000);
     base.title = `${bedrooms} BHK ${kind} in ${loc.locality}`;
-    base.description = `Spacious ${bedrooms} BHK ${kind.toLowerCase()} in ${loc.locality} with ${amenities.length} premium amenities. Well-connected and ready to move in.`;
+    base.description = `Spacious ${bedrooms} BHK ${kind.toLowerCase()} of ${base.area} sqft in ${loc.locality} with ${amenities.length} premium amenities. Well-connected and ready to move in.`;
   } else if (type === "plot") {
-    const sqft = roundTo(randInt(1000, 6000), 50);
+    base.area = roundTo(randInt(1000, 6000), 50);
     base.price = roundTo(randInt(3_000_000, 35_000_000), 100_000);
-    base.title = `${sqft} sqft Residential Plot in ${loc.locality}`;
-    base.description = `Clear-title ${sqft} sqft residential plot in ${loc.locality}. Ideal for building your dream home or as an investment.`;
+    base.title = `${base.area} sqft Residential Plot in ${loc.locality}`;
+    base.description = `Clear-title ${base.area} sqft residential plot in ${loc.locality}. Ideal for building your dream home or as an investment.`;
   } else {
     const kind = pick(COMMERCIAL_KINDS);
     base.bathrooms = randInt(1, 6);
     base.furnishing = pick(FURNISHING);
     base.available_from = futureDate();
+    base.area = randInt(800, 10000);
     base.price = roundTo(randInt(10_000_000, 200_000_000), 100_000);
     base.title = `${kind} in ${loc.locality}`;
-    base.description = `Premium ${kind.toLowerCase()} in ${loc.locality} at a prime commercial location with excellent footfall and ${amenities.length} amenities.`;
+    base.description = `Premium ${kind.toLowerCase()} of ${base.area} sqft in ${loc.locality} at a prime commercial location with excellent footfall and ${amenities.length} amenities.`;
   }
 
   base.rejection_reason = status === "rejected" ? pick(REJECTION_REASONS) : null;
@@ -257,15 +271,15 @@ async function seed() {
 
       const { rows } = await client.query(
         `INSERT INTO properties (
-           owner_id, title, description, price, property_type,
+           owner_id, title, description, price, property_type, area, property_facing,
            bathrooms, furnishing, available_from,
            address, locality, city, state, pincode, latitude, longitude,
            status, rejection_reason, approved_by, approved_at, amenities
          ) VALUES (
-           $1,$2,$3,$4,$5,
-           $6,$7,$8,
-           $9,$10,$11,$12,$13,$14,$15,
-           $16,$17,$18, ${isActive ? "NOW()" : "NULL"}, $19
+           $1,$2,$3,$4,$5,$6,$7,
+           $8,$9,$10,
+           $11,$12,$13,$14,$15,$16,$17,
+           $18,$19,$20, ${isActive ? "NOW()" : "NULL"}, $21
          ) RETURNING id`,
         [
           ownerId,
@@ -273,6 +287,8 @@ async function seed() {
           p.description,
           p.price,
           p.property_type,
+          p.area,
+          p.property_facing,
           p.bathrooms,
           p.furnishing,
           p.available_from,

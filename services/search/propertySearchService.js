@@ -12,6 +12,16 @@ import {
 import { buildSummary } from "./_summary.js";
 
 const PROPERTY_TYPES = ["residential", "plot", "commercial"];
+const PROPERTY_FACINGS = [
+  "north",
+  "south",
+  "east",
+  "west",
+  "north_east",
+  "north_west",
+  "south_east",
+  "south_west",
+];
 
 const AMENITY_SLUG_CACHE_TTL_MS = 60 * 1000;
 let amenitySlugCache = { value: null, expiresAt: 0 };
@@ -44,7 +54,23 @@ function buildPropertyFilterSchema(amenitySlugs) {
         type: ["array", "null"],
         items: { type: "string", enum: PROPERTY_TYPES },
         description:
-          "The kinds of property the user is after, collecting EVERY type mentioned. Each item MUST be one of: residential, plot, commercial. Examples: 'villa or plot' → ['residential', 'plot']; 'office space' → ['commercial']. Use null if the query says nothing about type.",
+          "The kinds of property the user is after, collecting EVERY type mentioned. Each item MUST be one of: residential, plot, commercial. Examples: 'villa or plot' → ['residential', 'plot']; 'office space' → ['commercial']. A BHK/bedroom mention HINTS residential (add it), but never filter by the BHK number. Use null if the query says nothing about type.",
+      },
+      property_facing: {
+        type: ["array", "null"],
+        items: { type: "string", enum: PROPERTY_FACINGS },
+        description:
+          "Every compass direction the property should face, collected into an array. Map phrases like 'east-facing' → ['east'], 'north east facing' → ['north_east'], 'facing north or east' → ['north', 'east']. Use null if no facing is mentioned.",
+      },
+      min_area: {
+        type: ["integer", "null"],
+        description:
+          "Minimum built-up/plot area in square feet, as a plain integer. Set for 'min 1500 sqft', 'at least 1200 sq ft', or the lower bound of a range like '1200-2000 sqft'.",
+      },
+      max_area: {
+        type: ["integer", "null"],
+        description:
+          "Maximum area in square feet, as a plain integer. Set for 'under 2000 sqft' or the upper bound of a range like '1200-2000 sqft'.",
       },
       localities: {
         type: ["array", "null"],
@@ -76,10 +102,13 @@ function buildPropertyFilterSchema(amenitySlugs) {
     },
     required: [
       "property_type",
+      "property_facing",
       "localities",
       "city",
       "min_price",
       "max_price",
+      "min_area",
+      "max_area",
       "amenities",
     ],
     additionalProperties: false,
@@ -88,14 +117,21 @@ function buildPropertyFilterSchema(amenitySlugs) {
 
 const PROPERTY_SYSTEM_PROMPT = `You extract structured property-for-sale search filters from a user's natural-language query.
 Return ONLY the filter object via the extract_filters tool. Use null for any field not mentioned.
-Normalize price expressions: "60 lakh" → 6000000, "1.2 crore" → 12000000, "75L" → 7500000.
+Normalize price expressions: "60 lakh"/"60L" → 6000000, "1.2 crore"/"1.2cr" → 12000000, "50k" → 50000.
+Area is in square feet as a plain integer: "1200 sqft" → 1200, "1200-2000 sq ft" → min_area 1200 / max_area 2000.
 
 property_type — an ARRAY collecting EVERY type the user mentions (residential | plot | commercial), or null:
   - residential → "house", "home", "villa", "flat", "apartment", any "BHK"/"bedroom" mention, "duplex", "penthouse", "builder floor", "independent house", "row house". A bare BHK count ("3bhk", "2 bedroom") implies residential.
   - plot → "plot", "land", "site", "acre", "guntha", "open plot", "residential plot".
   - commercial → "office", "shop", "showroom", "warehouse", "commercial space", "retail", "godown", "co-working".
   - Collect all mentioned types, e.g. "villa or plot" → ["residential", "plot"].
+  - IMPORTANT: a BHK number is NOT a filter. "3bhk" only hints property_type residential — never emit it as any kind of count filter.
   - If the query is ambiguous or says nothing about type, return null (search across all types).
+
+property_facing — an ARRAY of compass directions mentioned, or null. "east-facing" → ["east"], "north east facing" → ["north_east"], "north or east facing" → ["north", "east"].
+
+price — "under/below X" → max_price; "above/over X" → min_price; "X to Y"/"X-Y" → both.
+area — "under 2000 sqft" → max_area; "min/at least 1500 sqft" → min_area; "1200-2000 sqft" → both.
 
 Locality matching:
   - The locality field MUST be one of the enum values in the tool schema, or null.
@@ -155,10 +191,57 @@ function detectPropertyTypes(q) {
   return types.length ? types : null;
 }
 
+// Collect every compass direction mentioned (handles "north east"/"north-east"
+// /"northeast" → north_east) for the no-API-key fallback.
+function detectFacings(q) {
+  const out = [];
+  const add = (f) => {
+    if (!out.includes(f)) out.push(f);
+  };
+  const compound = [
+    [/north[\s-]?east/, "north_east"],
+    [/north[\s-]?west/, "north_west"],
+    [/south[\s-]?east/, "south_east"],
+    [/south[\s-]?west/, "south_west"],
+  ];
+  let stripped = q;
+  for (const [re, val] of compound) {
+    if (re.test(stripped)) {
+      add(val);
+      stripped = stripped.replace(re, " ");
+    }
+  }
+  for (const dir of ["north", "south", "east", "west"]) {
+    if (new RegExp(`\\b${dir}\\b`).test(stripped)) add(dir);
+  }
+  return out.length ? out : null;
+}
+
 function extractPropertyFiltersWithRegex(query) {
   const q = query.toLowerCase();
 
   const property_type = detectPropertyTypes(q);
+  const property_facing = detectFacings(q);
+
+  // Area in sqft: a "1200-2000 sqft" range, or single "under/min N sqft".
+  let min_area = null;
+  let max_area = null;
+  const areaRange = q.match(
+    /(\d{3,6})\s*(?:-|to|–)\s*(\d{3,6})\s*(?:sq\.?\s*ft|sqft|sft|square\s*feet)/,
+  );
+  if (areaRange) {
+    min_area = parseInt(areaRange[1], 10);
+    max_area = parseInt(areaRange[2], 10);
+  } else {
+    const maxArea = q.match(
+      /(?:under|below|upto|up to|max)\s*(\d{3,6})\s*(?:sq\.?\s*ft|sqft|sft|square\s*feet)/,
+    );
+    if (maxArea) max_area = parseInt(maxArea[1], 10);
+    const minArea = q.match(
+      /(?:min|minimum|at\s*least|over|above)\s*(\d{3,6})\s*(?:sq\.?\s*ft|sqft|sft|square\s*feet)/,
+    );
+    if (minArea) min_area = parseInt(minArea[1], 10);
+  }
 
   const parseAmount = (n, unit) => {
     if (unit === "k") return Math.round(parseFloat(n) * 1000);
@@ -195,20 +278,26 @@ function extractPropertyFiltersWithRegex(query) {
 
   return {
     property_type,
+    property_facing,
     localities,
     city: null,
     min_price,
     max_price,
+    min_area,
+    max_area,
     amenities: null,
   };
 }
 
 const EMPTY_FILTERS = {
   property_type: null,
+  property_facing: null,
   localities: null,
   city: null,
   min_price: null,
   max_price: null,
+  min_area: null,
+  max_area: null,
   amenities: null,
 };
 
@@ -230,14 +319,14 @@ function nullifySentinel(v) {
   return NULLISH_STRINGS.has(trimmed.toLowerCase()) ? null : trimmed;
 }
 
-// Coerce an incoming property_type value (array, single string, or junk) to a
-// deduped array of valid enum values, or null when nothing valid remains.
-function normalizePropertyTypes(v) {
+// Coerce an incoming value (array, single string, or junk) to a deduped array
+// of values from `allowed`, or null when nothing valid remains.
+function normalizeEnumArray(v, allowed) {
   const arr = Array.isArray(v) ? v : v != null ? [v] : [];
   const out = [];
   for (const item of arr) {
     const s = nullifySentinel(item);
-    if (PROPERTY_TYPES.includes(s) && !out.includes(s)) out.push(s);
+    if (allowed.includes(s) && !out.includes(s)) out.push(s);
   }
   return out.length ? out : null;
 }
@@ -341,14 +430,18 @@ export async function naturalLanguagePropertySearch({
   const amenitiesMode =
     explicitAmenities && explicitAmenities.length > 0 ? "all" : "any";
 
-  // property_type: an array (multi-select, OR match). Explicit picks win over
-  // NL-implied; both validated/deduped against the enum.
+  // property_type & property_facing: arrays (multi-select, OR match). Explicit
+  // picks win over NL-implied; both validated/deduped against their enums.
   const propertyTypes =
-    normalizePropertyTypes(explicit.property_type) ??
-    normalizePropertyTypes(nlFilters.property_type);
+    normalizeEnumArray(explicit.property_type, PROPERTY_TYPES) ??
+    normalizeEnumArray(nlFilters.property_type, PROPERTY_TYPES);
+  const propertyFacings =
+    normalizeEnumArray(explicit.property_facing, PROPERTY_FACINGS) ??
+    normalizeEnumArray(nlFilters.property_facing, PROPERTY_FACINGS);
 
   const filters = {
     property_type: propertyTypes,
+    property_facing: propertyFacings,
     localities:
       canonicalizedLocalities && canonicalizedLocalities.length > 0
         ? canonicalizedLocalities
@@ -356,6 +449,8 @@ export async function naturalLanguagePropertySearch({
     city: nullifySentinel(pick("city")) ?? null,
     min_price: pick("min_price") ?? null,
     max_price: pick("max_price") ?? null,
+    min_area: pick("min_area") ?? null,
+    max_area: pick("max_area") ?? null,
     amenities: chosenAmenities,
   };
 
@@ -373,6 +468,9 @@ export async function naturalLanguagePropertySearch({
     city: filters.city || undefined,
     localities: filters.localities ?? undefined,
     propertyTypes: filters.property_type ?? undefined,
+    propertyFacings: filters.property_facing ?? undefined,
+    minArea: filters.min_area ?? undefined,
+    maxArea: filters.max_area ?? undefined,
     minPrice: filters.min_price ?? undefined,
     maxPrice: filters.max_price ?? undefined,
     amenities: filters.amenities ?? undefined,

@@ -2,6 +2,16 @@ import { z } from "zod";
 import { LISTING_STATUS } from "../../utils/constants.js";
 
 export const PROPERTY_TYPES = ["residential", "plot", "commercial"];
+export const PROPERTY_FACINGS = [
+  "north",
+  "south",
+  "east",
+  "west",
+  "north_east",
+  "north_west",
+  "south_east",
+  "south_west",
+];
 const FURNISHING = ["unfurnished", "semi_furnished", "furnished"];
 
 const OWNED_STATUSES = [
@@ -21,6 +31,8 @@ export const createPropertyBody = z.object({
   description: z.string().max(5000).optional(),
   price: z.coerce.number().int().positive(),
   property_type: z.enum(PROPERTY_TYPES),
+  area: z.coerce.number().int().positive().optional(),
+  property_facing: z.enum(PROPERTY_FACINGS).optional(),
   bathrooms: z.coerce.number().int().min(0).max(20).optional(),
   furnishing: z.enum(FURNISHING).optional(),
   available_from: z.coerce.date().optional(),
@@ -44,7 +56,9 @@ export const publicPropertiesQuery = z.object({
   city: z.string().min(1).max(120).optional(),
   locality: z.string().min(1).max(120).optional(),
   property_type: z.enum(PROPERTY_TYPES).optional(),
+  property_facing: z.enum(PROPERTY_FACINGS).optional(),
   max_price: z.coerce.number().int().positive().optional(),
+  max_area: z.coerce.number().int().positive().optional(),
   limit: z.coerce.number().int().min(1).max(100).default(20),
   offset: z.coerce.number().int().min(0).default(0),
 });

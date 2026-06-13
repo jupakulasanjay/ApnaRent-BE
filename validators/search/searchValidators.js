@@ -54,10 +54,26 @@ export const propertySearchBody = z
         property_type: z
           .array(z.enum(["residential", "plot", "commercial"]))
           .nullish(),
+        property_facing: z
+          .array(
+            z.enum([
+              "north",
+              "south",
+              "east",
+              "west",
+              "north_east",
+              "north_west",
+              "south_east",
+              "south_west",
+            ]),
+          )
+          .nullish(),
         localities: z.array(z.string().min(1)).nullish(),
         city: z.string().min(1).nullish(),
         min_price: z.number().int().nonnegative().nullish(),
         max_price: z.number().int().positive().nullish(),
+        min_area: z.number().int().nonnegative().nullish(),
+        max_area: z.number().int().positive().nullish(),
         amenities: z.array(z.string().min(1)).nullish(),
       })
       .optional(),
@@ -82,5 +98,16 @@ export const propertySearchBody = z
     {
       message: "min_price must be <= max_price",
       path: ["filters", "min_price"],
+    },
+  )
+  .refine(
+    (v) =>
+      !v.filters ||
+      v.filters.min_area == null ||
+      v.filters.max_area == null ||
+      v.filters.min_area <= v.filters.max_area,
+    {
+      message: "min_area must be <= max_area",
+      path: ["filters", "min_area"],
     },
   );

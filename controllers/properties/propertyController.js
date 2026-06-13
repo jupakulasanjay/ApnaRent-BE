@@ -66,13 +66,23 @@ export async function listMy(req, res, next) {
 
 export async function listPublic(req, res, next) {
   try {
-    const { city, locality, property_type, max_price, limit, offset } =
-      req.query;
+    const {
+      city,
+      locality,
+      property_type,
+      property_facing,
+      max_price,
+      max_area,
+      limit,
+      offset,
+    } = req.query;
     const { rows, total } = await propertyService.listPublic({
       city,
       locality,
       propertyType: property_type,
+      propertyFacing: property_facing,
       maxPrice: max_price,
+      maxArea: max_area,
       limit,
       offset,
     });

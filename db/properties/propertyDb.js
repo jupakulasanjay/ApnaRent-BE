@@ -3,7 +3,7 @@ import { buildRankExpr } from "../listings/_rank.js";
 import { LISTING_STATUS } from "../../utils/constants.js";
 
 const PROPERTY_COLS = `
-  id, owner_id, title, description, price, property_type,
+  id, owner_id, title, description, price, property_type, area, property_facing,
   bathrooms, furnishing, available_from,
   address, locality, city, state, pincode, latitude, longitude,
   status, rejection_reason, approved_by, approved_at, amenities, created_at
@@ -14,6 +14,8 @@ const WRITABLE = [
   "description",
   "price",
   "property_type",
+  "area",
+  "property_facing",
   "bathrooms",
   "furnishing",
   "available_from",
@@ -198,8 +200,10 @@ function buildPublicPropertiesWhere({
   city,
   locality,
   propertyType,
+  propertyFacing,
   minPrice,
   maxPrice,
+  maxArea,
   amenities,
   centroid,
   radiusKm,
@@ -216,6 +220,10 @@ function buildPublicPropertiesWhere({
     where.push(`property_type = $${i++}`);
     params.push(propertyType);
   }
+  if (propertyFacing) {
+    where.push(`property_facing = $${i++}`);
+    params.push(propertyFacing);
+  }
   if (minPrice != null) {
     where.push(`price >= $${i++}`);
     params.push(minPrice);
@@ -223,6 +231,10 @@ function buildPublicPropertiesWhere({
   if (maxPrice != null) {
     where.push(`price <= $${i++}`);
     params.push(maxPrice);
+  }
+  if (maxArea != null) {
+    where.push(`area <= $${i++}`);
+    params.push(maxArea);
   }
   // ALL-of semantics for the explicit filter dropdown: a property must include
   // every picked amenity. NL search uses ANY-of via a separate code path.
@@ -260,8 +272,10 @@ export async function listPublicProperties({
   city,
   locality,
   propertyType,
+  propertyFacing,
   minPrice,
   maxPrice,
+  maxArea,
   amenities,
   centroid,
   radiusKm,
@@ -273,8 +287,10 @@ export async function listPublicProperties({
       city,
       locality,
       propertyType,
+      propertyFacing,
       minPrice,
       maxPrice,
+      maxArea,
       amenities,
       centroid,
       radiusKm,
@@ -296,8 +312,10 @@ export async function countPublicProperties({
   city,
   locality,
   propertyType,
+  propertyFacing,
   minPrice,
   maxPrice,
+  maxArea,
   amenities,
   centroid,
   radiusKm,
@@ -306,8 +324,10 @@ export async function countPublicProperties({
     city,
     locality,
     propertyType,
+    propertyFacing,
     minPrice,
     maxPrice,
+    maxArea,
     amenities,
     centroid,
     radiusKm,
@@ -332,8 +352,11 @@ export async function searchPublicProperties({
   city,
   localities,
   propertyTypes,
+  propertyFacings,
   minPrice,
   maxPrice,
+  minArea,
+  maxArea,
   amenities,
   amenitiesMode = "any",
   centroids,
@@ -353,6 +376,10 @@ export async function searchPublicProperties({
     where.push(`property_type = ANY($${i++}::text[])`);
     params.push(propertyTypes);
   }
+  if (Array.isArray(propertyFacings) && propertyFacings.length > 0) {
+    where.push(`property_facing = ANY($${i++}::text[])`);
+    params.push(propertyFacings);
+  }
   if (minPrice != null) {
     where.push(`price >= $${i++}`);
     params.push(minPrice);
@@ -360,6 +387,14 @@ export async function searchPublicProperties({
   if (maxPrice != null) {
     where.push(`price <= $${i++}`);
     params.push(maxPrice);
+  }
+  if (minArea != null) {
+    where.push(`area >= $${i++}`);
+    params.push(minArea);
+  }
+  if (maxArea != null) {
+    where.push(`area <= $${i++}`);
+    params.push(maxArea);
   }
   // `any` = array overlap (&&), `all` = array contains (@>). NL search passes
   // `any` so "gym OR pool" is reasonable recall; the manual filter passes
