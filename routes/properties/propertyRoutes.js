@@ -13,7 +13,6 @@ import {
 import {
   authenticate,
   optionalAuthenticate,
-  requireOwner,
   requireRole,
 } from "../../middleware/authMiddleware.js";
 import { validate } from "../../middleware/validateMiddleware.js";
@@ -26,9 +25,10 @@ import {
 } from "../../validators/properties/propertyValidators.js";
 import { idParam, idAndImageIdParam } from "../../validators/_shared/common.js";
 import { USER_ROLE } from "../../utils/constants.js";
-
-const PROPERTY_IMAGES_S3_PREFIX = "property-images";
-const MAX_PROPERTY_IMAGES = 15;
+import {
+  PROPERTY_IMAGES_S3_PREFIX,
+  MAX_PROPERTY_IMAGES,
+} from "../../services/properties/propertyConstants.js";
 
 const ownerOrAdmin = requireRole(USER_ROLE.OWNER, USER_ROLE.ADMIN);
 
@@ -52,28 +52,28 @@ propertyRoute.get(
 propertyRoute.post(
   "/",
   authenticate,
-  requireOwner,
+  ownerOrAdmin,
   validate({ body: createPropertyBody }),
   create,
 );
 propertyRoute.put(
   "/:id",
   authenticate,
-  requireOwner,
+  ownerOrAdmin,
   validate({ params: idParam, body: updatePropertyBody }),
   update,
 );
 propertyRoute.post(
   "/:id/submit",
   authenticate,
-  requireOwner,
+  ownerOrAdmin,
   validate({ params: idParam }),
   submit,
 );
 propertyRoute.post(
   "/:id/images",
   authenticate,
-  requireOwner,
+  ownerOrAdmin,
   validate({ params: idParam }),
   upload.array("images", MAX_PROPERTY_IMAGES),
   processImages(PROPERTY_IMAGES_S3_PREFIX),

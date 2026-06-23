@@ -5,6 +5,7 @@ export async function create(req, res, next) {
     const property = await propertyService.createPropertyForOwner(
       req.user.id,
       req.body,
+      { actorRole: req.user.role },
     );
     res.status(201).json(property);
   } catch (err) {

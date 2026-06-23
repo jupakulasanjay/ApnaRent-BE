@@ -23,12 +23,16 @@ import {
   s3KeyFromUrl,
 } from "../_shared/s3Service.js";
 import { decoratePostedBy, decoratePostedByMany } from "../_shared/postedBy.js";
+import { applyCommunityTemplate } from "../_shared/communityTemplate.js";
 import { SEARCH_RADIUS_KM } from "../search/_searchConfig.js";
 import { httpError } from "../../utils/httpError.js";
-import { LISTING_STATUS, USER_ROLE } from "../../utils/constants.js";
+import {
+  DEFAULT_GEOCODE_CITY,
+  LISTING_STATUS,
+  USER_ROLE,
+} from "../../utils/constants.js";
 
 const PUBLIC_LIST_RADIUS_KM = SEARCH_RADIUS_KM;
-const DEFAULT_CITY_FOR_GEOCODE = "Bangalore";
 
 async function assertOwnsListing(listingId, ownerId) {
   const listing = await getListingById(listingId);
@@ -38,8 +42,17 @@ async function assertOwnsListing(listingId, ownerId) {
   return listing;
 }
 
-export async function createListingForOwner(ownerId, data) {
-  const created = await createListing({ ownerId, ...data });
+export async function createListingForOwner(ownerId, data, { actorRole } = {}) {
+  const resolved = await applyCommunityTemplate(data);
+  const created = await createListing({ ownerId, ...resolved });
+  // Admin (OG Homes) posts go live immediately; owners start as drafts.
+  if (actorRole === USER_ROLE.ADMIN) {
+    const activated = await setListingStatus(created.id, {
+      status: LISTING_STATUS.ACTIVE,
+      approvedBy: ownerId,
+    });
+    return decoratePostedBy(activated);
+  }
   return decoratePostedBy(created);
 }
 
@@ -99,7 +112,7 @@ export async function listMyListings(ownerId, { status, limit, offset } = {}) {
 export async function listPublic(filters) {
   const centroid = filters.locality
     ? await resolveLocalityCentroid(
-        filters.city || DEFAULT_CITY_FOR_GEOCODE,
+        filters.city || DEFAULT_GEOCODE_CITY,
         filters.locality,
       )
     : null;

@@ -5,6 +5,7 @@ export async function create(req, res, next) {
     const listing = await listingService.createListingForOwner(
       req.user.id,
       req.body,
+      { actorRole: req.user.role },
     );
     res.status(201).json(listing);
   } catch (err) {

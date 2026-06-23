@@ -10,6 +10,7 @@ import searchRoutes from "./routes/search/searchRoutes.js";
 import contactRoutes from "./routes/contacts/contactRoutes.js";
 import interestRoutes from "./routes/interests/interestRoutes.js";
 import amenityRoutes from "./routes/amenities/amenityRoutes.js";
+import communityRoutes from "./routes/communities/communityRoutes.js";
 import { notFound, errorHandler } from "./middleware/errorMiddleware.js";
 
 const app = express();
@@ -29,6 +30,7 @@ app.use("/api/search", searchRoutes);
 app.use("/api/contact", contactRoutes);
 app.use("/api/interests", interestRoutes);
 app.use("/api/amenities", amenityRoutes);
+app.use("/api/communities", communityRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

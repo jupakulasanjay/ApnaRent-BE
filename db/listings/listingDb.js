@@ -6,7 +6,7 @@ const LISTING_COLS = `
   id, owner_id, title, description, rent,
   bhk, bathrooms, furnishing, available_from,
   address, locality, city, state, pincode, latitude, longitude,
-  status, rejection_reason, approved_by, approved_at, amenities, created_at
+  status, rejection_reason, approved_by, approved_at, amenities, community_id, created_at
 `;
 
 const WRITABLE = [
@@ -25,6 +25,7 @@ const WRITABLE = [
   "latitude",
   "longitude",
   "amenities",
+  "community_id",
 ];
 
 const DEFAULT_PAGE_LIMIT = 20;
@@ -474,4 +475,33 @@ export async function deleteListing(id) {
     id,
   ]);
   return rowCount > 0;
+}
+
+// Attach/detach a listing to a community. `communityId` null detaches.
+export async function setListingCommunity(id, communityId) {
+  const { rows } = await pool.query(
+    `UPDATE listings SET community_id = $2 WHERE id = $1 RETURNING ${LISTING_COLS}`,
+    [id, communityId ?? null],
+  );
+  return rows[0] || null;
+}
+
+// Members of a community. `activeOnly` (public path) restricts to active rows;
+// admins pass false to see every status.
+export async function listListingsByCommunity({
+  communityId,
+  activeOnly = false,
+}) {
+  const params = [communityId];
+  let where = `community_id = $1`;
+  if (activeOnly) {
+    where += ` AND status = '${LISTING_STATUS.ACTIVE}'`;
+  }
+  const { rows } = await pool.query(
+    `SELECT ${LISTING_COLS} FROM listings
+     WHERE ${where}
+     ORDER BY created_at DESC, id DESC`,
+    params,
+  );
+  return rows;
 }

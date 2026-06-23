@@ -13,7 +13,6 @@ import {
 import {
   authenticate,
   optionalAuthenticate,
-  requireOwner,
   requireRole,
 } from "../../middleware/authMiddleware.js";
 import { validate } from "../../middleware/validateMiddleware.js";
@@ -26,9 +25,10 @@ import {
 } from "../../validators/rentals/listingValidators.js";
 import { idParam, idAndImageIdParam } from "../../validators/_shared/common.js";
 import { USER_ROLE } from "../../utils/constants.js";
-
-const LISTING_IMAGES_S3_PREFIX = "listing-images";
-const MAX_LISTING_IMAGES = 15;
+import {
+  LISTING_IMAGES_S3_PREFIX,
+  MAX_LISTING_IMAGES,
+} from "../../services/rentals/listingConstants.js";
 
 const ownerOrAdmin = requireRole(USER_ROLE.OWNER, USER_ROLE.ADMIN);
 
@@ -52,28 +52,28 @@ rentalRoute.get(
 rentalRoute.post(
   "/",
   authenticate,
-  requireOwner,
+  ownerOrAdmin,
   validate({ body: createListingBody }),
   create,
 );
 rentalRoute.put(
   "/:id",
   authenticate,
-  requireOwner,
+  ownerOrAdmin,
   validate({ params: idParam, body: updateListingBody }),
   update,
 );
 rentalRoute.post(
   "/:id/submit",
   authenticate,
-  requireOwner,
+  ownerOrAdmin,
   validate({ params: idParam }),
   submit,
 );
 rentalRoute.post(
   "/:id/images",
   authenticate,
-  requireOwner,
+  ownerOrAdmin,
   validate({ params: idParam }),
   upload.array("images", MAX_LISTING_IMAGES),
   processImages(LISTING_IMAGES_S3_PREFIX),

@@ -28,6 +28,7 @@ async function resetTables() {
        contacts,
        listing_images, listings,
        property_images, properties,
+       community_images, communities,
        unit_images, units, buildings,
        interests, admins, users,
        localities,

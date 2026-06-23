@@ -23,12 +23,16 @@ import {
   s3KeyFromUrl,
 } from "../_shared/s3Service.js";
 import { decoratePostedBy, decoratePostedByMany } from "../_shared/postedBy.js";
+import { applyCommunityTemplate } from "../_shared/communityTemplate.js";
 import { SEARCH_RADIUS_KM } from "../search/_searchConfig.js";
 import { httpError } from "../../utils/httpError.js";
-import { LISTING_STATUS, USER_ROLE } from "../../utils/constants.js";
+import {
+  DEFAULT_GEOCODE_CITY,
+  LISTING_STATUS,
+  USER_ROLE,
+} from "../../utils/constants.js";
 
 const PUBLIC_LIST_RADIUS_KM = SEARCH_RADIUS_KM;
-const DEFAULT_CITY_FOR_GEOCODE = "Bangalore";
 
 async function assertOwnsProperty(propertyId, ownerId) {
   const property = await getPropertyById(propertyId);
@@ -38,8 +42,21 @@ async function assertOwnsProperty(propertyId, ownerId) {
   return property;
 }
 
-export async function createPropertyForOwner(ownerId, data) {
-  const created = await createProperty({ ownerId, ...data });
+export async function createPropertyForOwner(
+  ownerId,
+  data,
+  { actorRole } = {},
+) {
+  const resolved = await applyCommunityTemplate(data);
+  const created = await createProperty({ ownerId, ...resolved });
+  // Admin (OG Homes) posts go live immediately; owners start as drafts.
+  if (actorRole === USER_ROLE.ADMIN) {
+    const activated = await setPropertyStatus(created.id, {
+      status: LISTING_STATUS.ACTIVE,
+      approvedBy: ownerId,
+    });
+    return decoratePostedBy(activated);
+  }
   return decoratePostedBy(created);
 }
 
@@ -78,7 +95,10 @@ export async function addImagesToProperty(ownerId, propertyId, imageUrls) {
 // pager); `statusCounts` is the full per-status breakdown ignoring filter +
 // pagination (drives tab badges / empty states). The three queries are
 // independent, so run them concurrently.
-export async function listMyProperties(ownerId, { status, limit, offset } = {}) {
+export async function listMyProperties(
+  ownerId,
+  { status, limit, offset } = {},
+) {
   const [rows, count, statusCounts] = await Promise.all([
     listPropertiesByOwner({ ownerId, status, limit, offset }),
     countPropertiesByOwner({ ownerId, status }),
@@ -99,7 +119,7 @@ export async function listMyProperties(ownerId, { status, limit, offset } = {}) 
 export async function listPublic(filters) {
   const centroid = filters.locality
     ? await resolveLocalityCentroid(
-        filters.city || DEFAULT_CITY_FOR_GEOCODE,
+        filters.city || DEFAULT_GEOCODE_CITY,
         filters.locality,
       )
     : null;

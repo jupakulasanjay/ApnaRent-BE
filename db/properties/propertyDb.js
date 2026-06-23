@@ -6,7 +6,7 @@ const PROPERTY_COLS = `
   id, owner_id, title, description, price, property_type, area, property_facing,
   bathrooms, furnishing, available_from,
   address, locality, city, state, pincode, latitude, longitude,
-  status, rejection_reason, approved_by, approved_at, amenities, created_at
+  status, rejection_reason, approved_by, approved_at, amenities, community_id, created_at
 `;
 
 const WRITABLE = [
@@ -27,6 +27,7 @@ const WRITABLE = [
   "latitude",
   "longitude",
   "amenities",
+  "community_id",
 ];
 
 const DEFAULT_PAGE_LIMIT = 20;
@@ -503,8 +504,38 @@ export async function getPublicPropertyById(id) {
 }
 
 export async function deleteProperty(id) {
-  const { rowCount } = await pool.query(`DELETE FROM properties WHERE id = $1`, [
-    id,
-  ]);
+  const { rowCount } = await pool.query(
+    `DELETE FROM properties WHERE id = $1`,
+    [id],
+  );
   return rowCount > 0;
+}
+
+// Attach/detach a property to a community. `communityId` null detaches.
+export async function setPropertyCommunity(id, communityId) {
+  const { rows } = await pool.query(
+    `UPDATE properties SET community_id = $2 WHERE id = $1 RETURNING ${PROPERTY_COLS}`,
+    [id, communityId ?? null],
+  );
+  return rows[0] || null;
+}
+
+// Members of a community. `activeOnly` (public path) restricts to active rows;
+// admins pass false to see every status.
+export async function listPropertiesByCommunity({
+  communityId,
+  activeOnly = false,
+}) {
+  const params = [communityId];
+  let where = `community_id = $1`;
+  if (activeOnly) {
+    where += ` AND status = '${LISTING_STATUS.ACTIVE}'`;
+  }
+  const { rows } = await pool.query(
+    `SELECT ${PROPERTY_COLS} FROM properties
+     WHERE ${where}
+     ORDER BY created_at DESC, id DESC`,
+    params,
+  );
+  return rows;
 }
