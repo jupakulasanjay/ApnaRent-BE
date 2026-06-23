@@ -9,7 +9,7 @@ import {
   getPublic,
   removeImage,
   remove,
-} from "../../controllers/rentals/listingController.js";
+} from "../../controllers/properties/propertyController.js";
 import {
   authenticate,
   optionalAuthenticate,
@@ -18,77 +18,77 @@ import {
 import { validate } from "../../middleware/validateMiddleware.js";
 import { upload, processImages } from "../../middleware/uploadMiddleware.js";
 import {
-  createListingBody,
-  updateListingBody,
-  publicListingsQuery,
-  ownedListingsQuery,
-} from "../../validators/rentals/listingValidators.js";
+  createPropertyBody,
+  updatePropertyBody,
+  publicPropertiesQuery,
+  ownedPropertiesQuery,
+} from "../../validators/properties/propertyValidators.js";
 import { idParam, idAndImageIdParam } from "../../validators/_shared/common.js";
 import { USER_ROLE } from "../../utils/constants.js";
 import {
-  LISTING_IMAGES_S3_PREFIX,
-  MAX_LISTING_IMAGES,
-} from "../../services/rentals/listingConstants.js";
+  PROPERTY_IMAGES_S3_PREFIX,
+  MAX_PROPERTY_IMAGES,
+} from "../../services/properties/propertyConstants.js";
 
 const ownerOrAdmin = requireRole(USER_ROLE.OWNER, USER_ROLE.ADMIN);
 
-const rentalRoute = Router();
+const propertyRoute = Router();
 
-rentalRoute.get("/", validate({ query: publicListingsQuery }), listPublic);
-rentalRoute.get(
+propertyRoute.get("/", validate({ query: publicPropertiesQuery }), listPublic);
+propertyRoute.get(
   "/owned",
   authenticate,
   ownerOrAdmin,
-  validate({ query: ownedListingsQuery }),
+  validate({ query: ownedPropertiesQuery }),
   listMy,
 );
-rentalRoute.get(
+propertyRoute.get(
   "/:id",
   optionalAuthenticate,
   validate({ params: idParam }),
   getPublic,
 );
 
-rentalRoute.post(
+propertyRoute.post(
   "/",
   authenticate,
   ownerOrAdmin,
-  validate({ body: createListingBody }),
+  validate({ body: createPropertyBody }),
   create,
 );
-rentalRoute.put(
+propertyRoute.put(
   "/:id",
   authenticate,
   ownerOrAdmin,
-  validate({ params: idParam, body: updateListingBody }),
+  validate({ params: idParam, body: updatePropertyBody }),
   update,
 );
-rentalRoute.post(
+propertyRoute.post(
   "/:id/submit",
   authenticate,
   ownerOrAdmin,
   validate({ params: idParam }),
   submit,
 );
-rentalRoute.post(
+propertyRoute.post(
   "/:id/images",
   authenticate,
   ownerOrAdmin,
   validate({ params: idParam }),
-  upload.array("images", MAX_LISTING_IMAGES),
-  processImages(LISTING_IMAGES_S3_PREFIX),
+  upload.array("images", MAX_PROPERTY_IMAGES),
+  processImages(PROPERTY_IMAGES_S3_PREFIX),
   uploadImages,
 );
 
 // Status gate (active blocks owners, admins unrestricted) lives in the service layer.
-rentalRoute.delete(
+propertyRoute.delete(
   "/:id/images/:imageId",
   authenticate,
   ownerOrAdmin,
   validate({ params: idAndImageIdParam }),
   removeImage,
 );
-rentalRoute.delete(
+propertyRoute.delete(
   "/:id",
   authenticate,
   ownerOrAdmin,
@@ -96,4 +96,4 @@ rentalRoute.delete(
   remove,
 );
 
-export default rentalRoute;
+export default propertyRoute;

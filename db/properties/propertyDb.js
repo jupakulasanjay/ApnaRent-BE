@@ -1,10 +1,10 @@
 import pool from "../../config/db.js";
-import { buildRankExpr } from "./_rank.js";
+import { buildRankExpr } from "../listings/_rank.js";
 import { LISTING_STATUS } from "../../utils/constants.js";
 
-const LISTING_COLS = `
-  id, owner_id, title, description, rent,
-  bhk, bathrooms, furnishing, available_from,
+const PROPERTY_COLS = `
+  id, owner_id, title, description, price, property_type, area, property_facing,
+  bathrooms, furnishing, available_from,
   address, locality, city, state, pincode, latitude, longitude,
   status, rejection_reason, approved_by, approved_at, amenities, community_id, created_at
 `;
@@ -12,8 +12,10 @@ const LISTING_COLS = `
 const WRITABLE = [
   "title",
   "description",
-  "rent",
-  "bhk",
+  "price",
+  "property_type",
+  "area",
+  "property_facing",
   "bathrooms",
   "furnishing",
   "available_from",
@@ -40,67 +42,67 @@ function pickWritable(data) {
   return entries;
 }
 
-export async function createListing({ ownerId, ...data }) {
+export async function createProperty({ ownerId, ...data }) {
   const entries = pickWritable(data);
   const cols = ["owner_id", ...entries.map(([c]) => c)];
   const params = [ownerId, ...entries.map(([, v]) => v)];
   const placeholders = params.map((_, i) => `$${i + 1}`);
 
   const { rows } = await pool.query(
-    `INSERT INTO listings (${cols.join(", ")})
+    `INSERT INTO properties (${cols.join(", ")})
      VALUES (${placeholders.join(", ")})
-     RETURNING ${LISTING_COLS}`,
+     RETURNING ${PROPERTY_COLS}`,
     params,
   );
   return rows[0];
 }
 
-export async function getListingById(id) {
+export async function getPropertyById(id) {
   const { rows } = await pool.query(
-    `SELECT ${LISTING_COLS} FROM listings WHERE id = $1`,
+    `SELECT ${PROPERTY_COLS} FROM properties WHERE id = $1`,
     [id],
   );
   return rows[0] || null;
 }
 
-export async function updateListing(id, patch) {
+export async function updateProperty(id, patch) {
   const entries = pickWritable(patch);
-  if (entries.length === 0) return getListingById(id);
+  if (entries.length === 0) return getPropertyById(id);
 
   const setClauses = entries.map(([c], i) => `${c} = $${i + 1}`);
   const params = entries.map(([, v]) => v);
   params.push(id);
 
   const { rows } = await pool.query(
-    `UPDATE listings SET ${setClauses.join(", ")}
+    `UPDATE properties SET ${setClauses.join(", ")}
      WHERE id = $${params.length}
-     RETURNING ${LISTING_COLS}`,
+     RETURNING ${PROPERTY_COLS}`,
     params,
   );
   return rows[0] || null;
 }
 
-export async function setListingStatus(
+export async function setPropertyStatus(
   id,
   { status, approvedBy, rejectionReason },
 ) {
   const { rows } = await pool.query(
-    `UPDATE listings
+    `UPDATE properties
      SET status = $2,
          approved_by = $3,
          approved_at = CASE WHEN $2 = '${LISTING_STATUS.ACTIVE}' THEN NOW() ELSE approved_at END,
          rejection_reason = $4
      WHERE id = $1
-     RETURNING ${LISTING_COLS}`,
+     RETURNING ${PROPERTY_COLS}`,
     [id, status, approvedBy || null, rejectionReason || null],
   );
   return rows[0] || null;
 }
 
-// Owner's own rentals, optionally filtered by status and paginated. A stable
+// Owner's own properties, optionally filtered by status and paginated. A stable
 // (created_at DESC, id DESC) sort keeps pages non-overlapping. `limit` omitted
 // → no LIMIT clause (all matching rows).
-export async function listListingsByOwner({
+export async function listPropertiesByOwner({
   ownerId,
   status,
   limit,
@@ -113,7 +115,7 @@ export async function listListingsByOwner({
     where += ` AND status = $${params.length}`;
   }
 
-  let sql = `SELECT ${LISTING_COLS} FROM listings
+  let sql = `SELECT ${PROPERTY_COLS} FROM properties
      WHERE ${where}
      ORDER BY created_at DESC, id DESC`;
 
@@ -130,7 +132,7 @@ export async function listListingsByOwner({
 
 // Total rows for the owner, honoring the (optional) status filter — drives the
 // pager, so it ignores limit/offset.
-export async function countListingsByOwner({ ownerId, status }) {
+export async function countPropertiesByOwner({ ownerId, status }) {
   const params = [ownerId];
   let where = `owner_id = $1`;
   if (status) {
@@ -138,20 +140,20 @@ export async function countListingsByOwner({ ownerId, status }) {
     where += ` AND status = $${params.length}`;
   }
   const { rows } = await pool.query(
-    `SELECT COUNT(*)::int AS total FROM listings WHERE ${where}`,
+    `SELECT COUNT(*)::int AS total FROM properties WHERE ${where}`,
     params,
   );
   return rows[0].total;
 }
 
-// Per-status breakdown across ALL the owner's rentals (no status filter, no
+// Per-status breakdown across ALL the owner's properties (no status filter, no
 // pagination) in one grouped query. `all` is the sum of the four dashboard
 // statuses; 'expired' rows, if any, are deliberately excluded from the buckets
 // and from `all`.
 export async function getOwnerStatusCounts(ownerId) {
   const { rows } = await pool.query(
     `SELECT status, COUNT(*)::int AS count
-       FROM listings
+       FROM properties
       WHERE owner_id = $1
       GROUP BY status`,
     [ownerId],
@@ -176,13 +178,13 @@ export async function getOwnerStatusCounts(ownerId) {
   return { all, ...counts };
 }
 
-export async function listListingsByStatus({
+export async function listPropertiesByStatus({
   status,
   limit = DEFAULT_SEARCH_LIMIT,
   offset = 0,
 }) {
   const { rows } = await pool.query(
-    `SELECT ${LISTING_COLS} FROM listings
+    `SELECT ${PROPERTY_COLS} FROM properties
      WHERE status = $1
      ORDER BY created_at DESC
      LIMIT $2 OFFSET $3`,
@@ -195,12 +197,14 @@ export async function listListingsByStatus({
 // radiusKm, restricts to rows within radius (NULL-coord rows excluded — they
 // can't be distance-ranked) and returns a distanceExpr for ORDER BY. Without
 // a centroid, falls back to literal locality ILIKE.
-function buildPublicListingsWhere({
+function buildPublicPropertiesWhere({
   city,
   locality,
-  bhk,
-  minRent,
-  maxRent,
+  propertyType,
+  propertyFacing,
+  minPrice,
+  maxPrice,
+  maxArea,
   amenities,
   centroid,
   radiusKm,
@@ -213,19 +217,27 @@ function buildPublicListingsWhere({
     where.push(`city ILIKE $${i++}`);
     params.push(city);
   }
-  if (bhk != null) {
-    where.push(`bhk = $${i++}`);
-    params.push(bhk);
+  if (propertyType) {
+    where.push(`property_type = $${i++}`);
+    params.push(propertyType);
   }
-  if (minRent != null) {
-    where.push(`rent >= $${i++}`);
-    params.push(minRent);
+  if (propertyFacing) {
+    where.push(`property_facing = $${i++}`);
+    params.push(propertyFacing);
   }
-  if (maxRent != null) {
-    where.push(`rent <= $${i++}`);
-    params.push(maxRent);
+  if (minPrice != null) {
+    where.push(`price >= $${i++}`);
+    params.push(minPrice);
   }
-  // ALL-of semantics for the explicit filter dropdown: a listing must include
+  if (maxPrice != null) {
+    where.push(`price <= $${i++}`);
+    params.push(maxPrice);
+  }
+  if (maxArea != null) {
+    where.push(`area <= $${i++}`);
+    params.push(maxArea);
+  }
+  // ALL-of semantics for the explicit filter dropdown: a property must include
   // every picked amenity. NL search uses ANY-of via a separate code path.
   if (Array.isArray(amenities) && amenities.length > 0) {
     where.push(`amenities @> $${i++}::text[]`);
@@ -257,33 +269,38 @@ function buildPublicListingsWhere({
   return { whereSql: where.join(" AND "), params, nextIdx: i, distanceExpr };
 }
 
-export async function listPublicListings({
+export async function listPublicProperties({
   city,
   locality,
-  bhk,
-  minRent,
-  maxRent,
+  propertyType,
+  propertyFacing,
+  minPrice,
+  maxPrice,
+  maxArea,
   amenities,
   centroid,
   radiusKm,
   limit = DEFAULT_PAGE_LIMIT,
   offset = 0,
 }) {
-  const { whereSql, params, nextIdx, distanceExpr } = buildPublicListingsWhere({
-    city,
-    locality,
-    bhk,
-    minRent,
-    maxRent,
-    amenities,
-    centroid,
-    radiusKm,
-  });
+  const { whereSql, params, nextIdx, distanceExpr } =
+    buildPublicPropertiesWhere({
+      city,
+      locality,
+      propertyType,
+      propertyFacing,
+      minPrice,
+      maxPrice,
+      maxArea,
+      amenities,
+      centroid,
+      radiusKm,
+    });
   let i = nextIdx;
   params.push(limit, offset);
 
   const { rows } = await pool.query(
-    `SELECT ${LISTING_COLS} FROM listings
+    `SELECT ${PROPERTY_COLS} FROM properties
      WHERE ${whereSql}
      ORDER BY ${buildRankExpr({ distanceExpr })} DESC, created_at DESC
      LIMIT $${i++} OFFSET $${i++}`,
@@ -292,47 +309,55 @@ export async function listPublicListings({
   return rows;
 }
 
-export async function countPublicListings({
+export async function countPublicProperties({
   city,
   locality,
-  bhk,
-  minRent,
-  maxRent,
+  propertyType,
+  propertyFacing,
+  minPrice,
+  maxPrice,
+  maxArea,
   amenities,
   centroid,
   radiusKm,
 }) {
-  const { whereSql, params } = buildPublicListingsWhere({
+  const { whereSql, params } = buildPublicPropertiesWhere({
     city,
     locality,
-    bhk,
-    minRent,
-    maxRent,
+    propertyType,
+    propertyFacing,
+    minPrice,
+    maxPrice,
+    maxArea,
     amenities,
     centroid,
     radiusKm,
   });
   const { rows } = await pool.query(
-    `SELECT COUNT(*)::int AS total FROM listings WHERE ${whereSql}`,
+    `SELECT COUNT(*)::int AS total FROM properties WHERE ${whereSql}`,
     params,
   );
   return rows[0].total;
 }
 
 // NL-search variant. Accepts multiple localities + a parallel `centroids`
-// array; a listing matches if it's within radius of ANY resolved centroid,
+// array; a property matches if it's within radius of ANY resolved centroid,
 // literally matches ANY locality with no resolved centroid, OR is a null-coord
 // row literally matching ANY of the localities. Ranking distance is LEAST of
 // the per-centroid distances.
 //
-// BHK is a soft ranking signal, not a hard WHERE — a user asking "2bhk in
-// Neelasandra" still wants to see the only listing there even if it's a 1BHK.
-export async function searchPublicListings({
+// property_type, unlike the rentals' soft BHK signal, is a HARD WHERE filter.
+// `propertyTypes` is an array (multi-select): a row matches if its type is ANY
+// of the listed types (OR). Empty/omitted → no type constraint (all types).
+export async function searchPublicProperties({
   city,
   localities,
-  bhk,
-  minRent,
-  maxRent,
+  propertyTypes,
+  propertyFacings,
+  minPrice,
+  maxPrice,
+  minArea,
+  maxArea,
   amenities,
   amenitiesMode = "any",
   centroids,
@@ -348,21 +373,29 @@ export async function searchPublicListings({
     where.push(`city ILIKE $${i++}`);
     params.push(city);
   }
-  let softMatchExpr = null;
-  if (bhk != null) {
-    const bhkParam = `$${i++}`;
-    params.push(bhk);
-    softMatchExpr = `(CASE WHEN bhk = ${bhkParam} THEN 1.0
-                           WHEN bhk IS NOT NULL AND abs(bhk - ${bhkParam}) = 1 THEN 0.5
-                           ELSE 0.0 END)`;
+  if (Array.isArray(propertyTypes) && propertyTypes.length > 0) {
+    where.push(`property_type = ANY($${i++}::text[])`);
+    params.push(propertyTypes);
   }
-  if (minRent != null) {
-    where.push(`rent >= $${i++}`);
-    params.push(minRent);
+  if (Array.isArray(propertyFacings) && propertyFacings.length > 0) {
+    where.push(`property_facing = ANY($${i++}::text[])`);
+    params.push(propertyFacings);
   }
-  if (maxRent != null) {
-    where.push(`rent <= $${i++}`);
-    params.push(maxRent);
+  if (minPrice != null) {
+    where.push(`price >= $${i++}`);
+    params.push(minPrice);
+  }
+  if (maxPrice != null) {
+    where.push(`price <= $${i++}`);
+    params.push(maxPrice);
+  }
+  if (minArea != null) {
+    where.push(`area >= $${i++}`);
+    params.push(minArea);
+  }
+  if (maxArea != null) {
+    where.push(`area <= $${i++}`);
+    params.push(maxArea);
   }
   // `any` = array overlap (&&), `all` = array contains (@>). NL search passes
   // `any` so "gym OR pool" is reasonable recall; the manual filter passes
@@ -452,35 +485,36 @@ export async function searchPublicListings({
   params.push(limit, offset);
 
   const { rows } = await pool.query(
-    `SELECT ${LISTING_COLS} FROM listings
+    `SELECT ${PROPERTY_COLS} FROM properties
      WHERE ${where.join(" AND ")}
-     ORDER BY ${buildRankExpr({ distanceExpr, softMatchExpr })} DESC, created_at DESC
+     ORDER BY ${buildRankExpr({ distanceExpr })} DESC, created_at DESC
      LIMIT $${i++} OFFSET $${i++}`,
     params,
   );
   return rows;
 }
 
-export async function getPublicListingById(id) {
+export async function getPublicPropertyById(id) {
   const { rows } = await pool.query(
-    `SELECT ${LISTING_COLS} FROM listings
+    `SELECT ${PROPERTY_COLS} FROM properties
      WHERE id = $1 AND status = '${LISTING_STATUS.ACTIVE}'`,
     [id],
   );
   return rows[0] || null;
 }
 
-export async function deleteListing(id) {
-  const { rowCount } = await pool.query(`DELETE FROM listings WHERE id = $1`, [
-    id,
-  ]);
+export async function deleteProperty(id) {
+  const { rowCount } = await pool.query(
+    `DELETE FROM properties WHERE id = $1`,
+    [id],
+  );
   return rowCount > 0;
 }
 
-// Attach/detach a listing to a community. `communityId` null detaches.
-export async function setListingCommunity(id, communityId) {
+// Attach/detach a property to a community. `communityId` null detaches.
+export async function setPropertyCommunity(id, communityId) {
   const { rows } = await pool.query(
-    `UPDATE listings SET community_id = $2 WHERE id = $1 RETURNING ${LISTING_COLS}`,
+    `UPDATE properties SET community_id = $2 WHERE id = $1 RETURNING ${PROPERTY_COLS}`,
     [id, communityId ?? null],
   );
   return rows[0] || null;
@@ -488,7 +522,7 @@ export async function setListingCommunity(id, communityId) {
 
 // Members of a community. `activeOnly` (public path) restricts to active rows;
 // admins pass false to see every status.
-export async function listListingsByCommunity({
+export async function listPropertiesByCommunity({
   communityId,
   activeOnly = false,
 }) {
@@ -498,7 +532,7 @@ export async function listListingsByCommunity({
     where += ` AND status = '${LISTING_STATUS.ACTIVE}'`;
   }
   const { rows } = await pool.query(
-    `SELECT ${LISTING_COLS} FROM listings
+    `SELECT ${PROPERTY_COLS} FROM properties
      WHERE ${where}
      ORDER BY created_at DESC, id DESC`,
     params,

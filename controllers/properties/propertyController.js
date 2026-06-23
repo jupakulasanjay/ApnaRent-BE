@@ -1,13 +1,13 @@
-import * as listingService from "../../services/rentals/listingService.js";
+import * as propertyService from "../../services/properties/propertyService.js";
 
 export async function create(req, res, next) {
   try {
-    const listing = await listingService.createListingForOwner(
+    const property = await propertyService.createPropertyForOwner(
       req.user.id,
       req.body,
       { actorRole: req.user.role },
     );
-    res.status(201).json(listing);
+    res.status(201).json(property);
   } catch (err) {
     next(err);
   }
@@ -15,12 +15,12 @@ export async function create(req, res, next) {
 
 export async function update(req, res, next) {
   try {
-    const listing = await listingService.updateListingForOwner(
+    const property = await propertyService.updatePropertyForOwner(
       req.user.id,
       req.params.id,
       req.body,
     );
-    res.json(listing);
+    res.json(property);
   } catch (err) {
     next(err);
   }
@@ -28,11 +28,11 @@ export async function update(req, res, next) {
 
 export async function submit(req, res, next) {
   try {
-    const listing = await listingService.submitListingForVerification(
+    const property = await propertyService.submitPropertyForVerification(
       req.user.id,
       req.params.id,
     );
-    res.json(listing);
+    res.json(property);
   } catch (err) {
     next(err);
   }
@@ -40,7 +40,7 @@ export async function submit(req, res, next) {
 
 export async function uploadImages(req, res, next) {
   try {
-    const images = await listingService.addImagesToListing(
+    const images = await propertyService.addImagesToProperty(
       req.user.id,
       req.params.id,
       req.imagePaths || [],
@@ -54,7 +54,7 @@ export async function uploadImages(req, res, next) {
 export async function listMy(req, res, next) {
   try {
     const { status, limit, offset } = req.query;
-    const result = await listingService.listMyListings(req.user.id, {
+    const result = await propertyService.listMyProperties(req.user.id, {
       status,
       limit,
       offset,
@@ -67,12 +67,23 @@ export async function listMy(req, res, next) {
 
 export async function listPublic(req, res, next) {
   try {
-    const { city, locality, bhk, max_rent, limit, offset } = req.query;
-    const { rows, total } = await listingService.listPublic({
+    const {
       city,
       locality,
-      bhk,
-      maxRent: max_rent,
+      property_type,
+      property_facing,
+      max_price,
+      max_area,
+      limit,
+      offset,
+    } = req.query;
+    const { rows, total } = await propertyService.listPublic({
+      city,
+      locality,
+      propertyType: property_type,
+      propertyFacing: property_facing,
+      maxPrice: max_price,
+      maxArea: max_area,
       limit,
       offset,
     });
@@ -84,11 +95,11 @@ export async function listPublic(req, res, next) {
 
 export async function getPublic(req, res, next) {
   try {
-    const listing = await listingService.getListingForRequester(
+    const property = await propertyService.getPropertyForRequester(
       req.params.id,
       req.user || null,
     );
-    res.json(listing);
+    res.json(property);
   } catch (err) {
     next(err);
   }
@@ -96,7 +107,7 @@ export async function getPublic(req, res, next) {
 
 export async function removeImage(req, res, next) {
   try {
-    await listingService.removeListingImage(
+    await propertyService.removePropertyImage(
       req.user,
       req.params.id,
       req.params.imageId,
@@ -109,7 +120,7 @@ export async function removeImage(req, res, next) {
 
 export async function remove(req, res, next) {
   try {
-    await listingService.removeListing(req.user, req.params.id);
+    await propertyService.removeProperty(req.user, req.params.id);
     res.status(204).end();
   } catch (err) {
     next(err);

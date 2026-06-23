@@ -6,6 +6,7 @@ export async function create(req, res, next) {
     const contact = await contactService.submitContact({
       userId: req.user.id,
       listingId: req.body.listing_id,
+      propertyId: req.body.property_id,
       message: req.body.message,
     });
     res.status(201).json(contact);
@@ -42,6 +43,17 @@ export async function listListingContactsForAdmin(req, res, next) {
   try {
     const data = await contactService.listAllContactsForAdmin(req.user, {
       kind: CONTACT_KIND.LISTING,
+    });
+    res.json(data);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function listPropertyContactsForAdmin(req, res, next) {
+  try {
+    const data = await contactService.listAllContactsForAdmin(req.user, {
+      kind: CONTACT_KIND.PROPERTY,
     });
     res.json(data);
   } catch (err) {

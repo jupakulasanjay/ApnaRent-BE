@@ -1,10 +1,19 @@
 import { z } from "zod";
 import { LISTING_STATUS } from "../../utils/constants.js";
 
+export const PROPERTY_TYPES = ["residential", "plot", "commercial"];
+export const PROPERTY_FACINGS = [
+  "north",
+  "south",
+  "east",
+  "west",
+  "north_east",
+  "north_west",
+  "south_east",
+  "south_west",
+];
 const FURNISHING = ["unfurnished", "semi_furnished", "furnished"];
 
-// Statuses an owner can filter their own rentals by. Intentionally excludes
-// 'expired' — the owner dashboard only surfaces these four lifecycle states.
 const OWNED_STATUSES = [
   LISTING_STATUS.DRAFT,
   LISTING_STATUS.PENDING,
@@ -16,11 +25,14 @@ const MAX_OWNED_PAGE = 100;
 
 const amenitiesArray = z.array(z.string().min(1).max(120)).max(100).optional();
 
-export const createListingBody = z.object({
+// Mirrors createListingBody, with `rent` → `price` and `bhk` → `property_type`.
+export const createPropertyBody = z.object({
   title: z.string().min(1).max(200),
   description: z.string().max(5000).optional(),
-  rent: z.coerce.number().int().positive(),
-  bhk: z.coerce.number().int().min(0).max(20).optional(),
+  price: z.coerce.number().int().positive(),
+  property_type: z.enum(PROPERTY_TYPES),
+  area: z.coerce.number().int().positive().optional(),
+  property_facing: z.enum(PROPERTY_FACINGS).optional(),
   bathrooms: z.coerce.number().int().min(0).max(20).optional(),
   furnishing: z.enum(FURNISHING).optional(),
   available_from: z.coerce.date().optional(),
@@ -35,25 +47,24 @@ export const createListingBody = z.object({
   community_id: z.coerce.number().int().positive().optional(),
 });
 
-export const updateListingBody = createListingBody.partial();
+export const updatePropertyBody = createPropertyBody.partial();
 
-export const rejectListingBody = z.object({
-  reason: z.string().min(1).max(500),
+export const rejectPropertyBody = z.object({
+  reason: z.string().min(3).max(500),
 });
 
-export const publicListingsQuery = z.object({
+export const publicPropertiesQuery = z.object({
   city: z.string().min(1).max(120).optional(),
   locality: z.string().min(1).max(120).optional(),
-  bhk: z.coerce.number().int().min(0).max(20).optional(),
-  max_rent: z.coerce.number().int().positive().optional(),
+  property_type: z.enum(PROPERTY_TYPES).optional(),
+  property_facing: z.enum(PROPERTY_FACINGS).optional(),
+  max_price: z.coerce.number().int().positive().optional(),
+  max_area: z.coerce.number().int().positive().optional(),
   limit: z.coerce.number().int().min(1).max(100).default(20),
   offset: z.coerce.number().int().min(0).default(0),
 });
 
-// "My rentals" listing query. Unknown status → 400 (zod enum). limit omitted
-// → undefined (service returns all matching rows); when present it's clamped
-// to [1, MAX_OWNED_PAGE]. offset is clamped to >= 0 and defaults to 0.
-export const ownedListingsQuery = z.object({
+export const ownedPropertiesQuery = z.object({
   status: z.enum(OWNED_STATUSES).optional(),
   limit: z.coerce
     .number()

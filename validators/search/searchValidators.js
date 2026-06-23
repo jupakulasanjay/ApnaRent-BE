@@ -42,3 +42,72 @@ export const searchBody = z
       path: ["filters", "min_rent"],
     },
   );
+
+// Property-for-sale search. Mirrors `searchBody` but with `min_price` /
+// `max_price` in place of `min_rent` / `max_rent`, and `property_type`
+// (residential | plot | commercial) in place of `bhk`.
+export const propertySearchBody = z
+  .object({
+    query: z.string().min(1).max(500).optional(),
+    filters: z
+      .object({
+        property_type: z
+          .array(z.enum(["residential", "plot", "commercial"]))
+          .nullish(),
+        property_facing: z
+          .array(
+            z.enum([
+              "north",
+              "south",
+              "east",
+              "west",
+              "north_east",
+              "north_west",
+              "south_east",
+              "south_west",
+            ]),
+          )
+          .nullish(),
+        localities: z.array(z.string().min(1)).nullish(),
+        city: z.string().min(1).nullish(),
+        min_price: z.number().int().nonnegative().nullish(),
+        max_price: z.number().int().positive().nullish(),
+        min_area: z.number().int().nonnegative().nullish(),
+        max_area: z.number().int().positive().nullish(),
+        amenities: z.array(z.string().min(1)).nullish(),
+      })
+      .optional(),
+  })
+  .refine(
+    (v) =>
+      (v.query && v.query.trim().length > 0) ||
+      (v.filters &&
+        Object.values(v.filters).some(
+          (x) => x != null && (!Array.isArray(x) || x.length > 0),
+        )),
+    {
+      message: "At least one of `query` or non-empty `filters` is required",
+    },
+  )
+  .refine(
+    (v) =>
+      !v.filters ||
+      v.filters.min_price == null ||
+      v.filters.max_price == null ||
+      v.filters.min_price <= v.filters.max_price,
+    {
+      message: "min_price must be <= max_price",
+      path: ["filters", "min_price"],
+    },
+  )
+  .refine(
+    (v) =>
+      !v.filters ||
+      v.filters.min_area == null ||
+      v.filters.max_area == null ||
+      v.filters.min_area <= v.filters.max_area,
+    {
+      message: "min_area must be <= max_area",
+      path: ["filters", "min_area"],
+    },
+  );

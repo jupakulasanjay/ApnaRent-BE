@@ -4,6 +4,11 @@ import {
   getListingById,
 } from "../../db/listings/listingDb.js";
 import { listListingImages } from "../../db/listings/listingImageDb.js";
+import {
+  getPublicPropertyById,
+  getPropertyById,
+} from "../../db/properties/propertyDb.js";
+import { listPropertyImages } from "../../db/properties/propertyImageDb.js";
 import { findUsersByIds } from "../../db/users/userDb.js";
 import { httpError } from "../../utils/httpError.js";
 import {
@@ -12,10 +17,24 @@ import {
   USER_ROLE,
 } from "../../utils/constants.js";
 
-export async function submitContact({ userId, listingId, message }) {
-  const listing = await getPublicListingById(listingId);
-  if (!listing) throw httpError(404, "Listing not found or not active");
-  return createContact({ userId, listingId, message });
+export async function submitContact({
+  userId,
+  listingId,
+  propertyId,
+  message,
+}) {
+  if (listingId) {
+    const listing = await getPublicListingById(listingId);
+    if (!listing) throw httpError(404, "Listing not found or not active");
+    return createContact({ userId, listingId, message });
+  }
+  if (propertyId) {
+    const property = await getPublicPropertyById(propertyId);
+    if (!property) throw httpError(404, "Property not found or not active");
+    return createContact({ userId, propertyId, message });
+  }
+  // Validator enforces XOR upstream; this is defensive.
+  throw httpError(400, "Provide exactly one of listing_id or property_id");
 }
 
 export async function submitGeneralContact({ userId, subject, message }) {
@@ -36,20 +55,29 @@ async function loadListingSnapshot(listingId, requester) {
   return listing;
 }
 
+async function loadPropertySnapshot(propertyId, requester) {
+  const property = await getPropertyById(propertyId);
+  if (!canViewTarget(property, requester)) return null;
+  property.images = await listPropertyImages(property.id);
+  return property;
+}
+
 function inferKind(row) {
   if (row.listing_id != null) return CONTACT_KIND.LISTING;
+  if (row.property_id != null) return CONTACT_KIND.PROPERTY;
   return CONTACT_KIND.GENERAL;
 }
 
-function shape(row, { listing = null } = {}) {
+function shape(row, { listing = null, property = null } = {}) {
   return {
     id: row.id,
     kind: inferKind(row),
-    target_id: row.listing_id ?? null,
+    target_id: row.listing_id ?? row.property_id ?? null,
     subject: row.subject ?? null,
     message: row.message,
     created_at: row.created_at,
     listing,
+    property,
   };
 }
 
@@ -77,9 +105,12 @@ export async function listAllContactsForAdmin(requester, { kind }) {
   for (const row of rows) {
     if (kind === CONTACT_KIND.LISTING) {
       const listing = await loadListingSnapshot(row.listing_id, requester);
-      items.push({ row, listing });
+      items.push({ row, listing, property: null });
+    } else if (kind === CONTACT_KIND.PROPERTY) {
+      const property = await loadPropertySnapshot(row.property_id, requester);
+      items.push({ row, listing: null, property });
     } else {
-      items.push({ row, listing: null });
+      items.push({ row, listing: null, property: null });
     }
   }
 
@@ -87,17 +118,18 @@ export async function listAllContactsForAdmin(requester, { kind }) {
     ...new Set(
       [
         ...rows.map((r) => r.user_id),
-        ...items.flatMap((i) => [i.listing?.owner_id]),
+        ...items.flatMap((i) => [i.listing?.owner_id, i.property?.owner_id]),
       ].filter(Boolean),
     ),
   ];
   const users = await findUsersByIds(userIds);
   const userById = new Map(users.map((u) => [u.id, u]));
 
-  return items.map(({ row, listing }) => {
+  return items.map(({ row, listing, property }) => {
     if (listing) listing.owner = pickOwner(userById.get(listing.owner_id));
+    if (property) property.owner = pickOwner(userById.get(property.owner_id));
     return {
-      ...shape(row, { listing }),
+      ...shape(row, { listing, property }),
       sender: pickSender(userById.get(row.user_id)),
     };
   });

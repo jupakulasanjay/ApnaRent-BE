@@ -6,3 +6,7 @@
 CREATE INDEX IF NOT EXISTS idx_listings_lat_lng
   ON listings (latitude, longitude)
   WHERE latitude IS NOT NULL AND longitude IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_properties_lat_lng
+  ON properties (latitude, longitude)
+  WHERE latitude IS NOT NULL AND longitude IS NOT NULL;
